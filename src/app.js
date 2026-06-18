@@ -72,11 +72,42 @@ class WebPet {
     // 5. 气泡系统
     this.bubble = new BubbleSystem(this.container);
 
-    // 6. 鼠标交互
+    // 6. 快捷面板
+    this.quickPanel = new QuickPanel({
+      getReminders: () => this.reminder.getAll(),
+      getNotes: () => this.notepad.getAll(),
+      onAddReminder: (content, triggerAt, minutes) => {
+        this.reminder.add(content, triggerAt);
+        this.bubble.show('⏰ ' + minutes + '分钟后提醒', 2000);
+      },
+      onRemoveReminder: (id) => {
+        this.reminder.remove(id);
+        this.bubble.show('已取消提醒', 1500);
+      },
+      onAddNote: (text) => {
+        this.notepad.add(text);
+        this.bubble.show('📝 已添加便签', 1500);
+      },
+      onToggleNote: (id) => this.notepad.toggleDone(id),
+      onPinNote: (id) => this.notepad.togglePin(id),
+      onDeleteNote: (id) => this.notepad.remove(id)
+    });
+
+    // 7. 鼠标交互
     this.mouse = new MouseHandler(this.container, this.stateMachine);
-    this.mouse.onClick = () => this.plugins.trigger('click');
+    this.mouse.onClick = () => {
+      this.plugins.trigger('click');
+      // 单击宠物也弹出快捷面板
+      if (this.quickPanel.visible) {
+        this.quickPanel.hide();
+      }
+    };
     this.mouse.onHover = () => this.plugins.trigger('hover');
-    this.mouse.onDoubleClick = () => this.settings.toggle();
+    this.mouse.onDoubleClick = () => {
+      // 双击打开快捷面板
+      const rect = this.container.el.getBoundingClientRect();
+      this.quickPanel.show(rect.left, rect.top);
+    };
     this.mouse.onContextMenu = (e) => this._showContextMenu(e);
 
     // 7. 插件系统
@@ -163,29 +194,10 @@ class WebPet {
       { label: '📍 重置位置', action: () => this.container.resetPosition() },
       { divider: true },
       { label: '💬 随机语录', action: () => this.bubble.show(this.bubble.getRandomQuote('click')) },
-      { label: '📝 新建便签', action: () => this._quickNote() },
-      { label: '⏰ 新建提醒', action: () => this._quickReminder() },
+      { label: '📋 打开控制台', action: () => { const rect = this.container.el.getBoundingClientRect(); this.quickPanel.show(rect.left, rect.top); } },
       { divider: true },
       { label: '⚙️ 设置', action: () => this.settings.show() }
     ]);
-  }
-
-  _quickNote() {
-    const text = prompt('输入便签内容：');
-    if (text) {
-      this.notepad.add(text);
-      this.bubble.show('📝 已保存便签', 2000);
-    }
-  }
-
-  _quickReminder() {
-    const text = prompt('提醒内容：');
-    if (!text) return;
-    const minutes = prompt('多少分钟后提醒？', '30');
-    if (minutes && !isNaN(minutes)) {
-      this.reminder.add(text, Date.now() + Number(minutes) * 60000);
-      this.bubble.show(`⏰ ${minutes}分钟后提醒`, 2000);
-    }
   }
 
   _showPinnedNote() {

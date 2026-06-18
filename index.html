@@ -118,6 +118,7 @@ body {
 <script src="src/tools/hourly.js"></script>
 <script src="src/tools/notepad.js"></script>
 <script src="src/ui/context-menu.js"></script>
+<script src="src/ui/quick-panel.js"></script>
 <script src="src/ui/settings.js"></script>
 <script src="src/app.js"></script>
 <script>
@@ -125,7 +126,7 @@ body {
   const pet = new WebPet({ skin: 'default_cat', size: 120 });
 
   // 3秒后打招呼
-  setTimeout(() => pet.say('你好呀~ 点我试试！\n右键我呼出菜单 → 设置 → 导入图片'), 3000);
+  setTimeout(() => pet.say('你好呀~\n双击我打开控制台\n右键呼出菜单'), 4000);
 </script>
 </body>
 </html>
