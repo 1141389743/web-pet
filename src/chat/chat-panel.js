@@ -1,5 +1,5 @@
 /**
- * 聊天面板 - 横向宽屏布局，贴近宠物底部弹出
+ * 聊天面板 - 横向宽屏布局，可拖动，宠物实时反应
  */
 class ChatPanel {
   constructor(options = {}) {
@@ -8,6 +8,8 @@ class ChatPanel {
     this._visible = false;
     this._loading = false;
     this.options = options;
+    this._isDragging = false;
+    this._dragOffset = { x: 0, y: 0 };
     this._init();
   }
 
@@ -46,11 +48,9 @@ class ChatPanel {
     this.el.style.display = 'block';
     this.overlay.style.display = 'block';
 
-    // 定位：宠物下方，水平居中对齐宠物
     const pw = 480;
     let px = x ? x - pw / 2 : (window.innerWidth - pw) / 2;
     let py = y ? y + 20 : window.innerHeight - 260;
-    // 边界修正
     px = Math.max(8, Math.min(px, window.innerWidth - pw - 8));
     if (py + 250 > window.innerHeight) py = y - 260;
     if (py < 8) py = 8;
@@ -75,7 +75,7 @@ class ChatPanel {
     const isConfigured = this.options.isConfigured?.();
 
     this.el.innerHTML = `
-      <div style="background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+      <div id="cp-header" style="background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:move;user-select:none">
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:16px">💬</span>
           <span style="font-size:14px;font-weight:600">和${petName}聊天</span>
@@ -104,7 +104,7 @@ class ChatPanel {
             <div style="display:flex;gap:5px;align-items:flex-start">
               <span style="font-size:14px">🐱</span>
               <div style="background:#f5f5f5;padding:6px 10px;border-radius:10px;border-top-left-radius:2px;font-size:12px">
-                <span class="cp-typing">思考中<span class="cp-dots">...</span></span>
+                思考中<span class="cp-dots"><span>.</span><span>.</span><span>.</span></span>
               </div>
             </div>
           ` : ''}
@@ -118,14 +118,61 @@ class ChatPanel {
     `;
 
     this._bindEvents();
+    this._bindDrag();
     this._scrollBottom();
     this._injectTypingStyle();
+  }
+
+  /**
+   * 拖动功能
+   */
+  _bindDrag() {
+    const header = this.el.querySelector('#cp-header');
+    if (!header) return;
+
+    const onStart = (e) => {
+      e.preventDefault();
+      this._isDragging = true;
+      const cx = e.clientX || e.touches?.[0]?.clientX || 0;
+      const cy = e.clientY || e.touches?.[0]?.clientY || 0;
+      const rect = this.el.getBoundingClientRect();
+      this._dragOffset = { x: cx - rect.left, y: cy - rect.top };
+      this.el.style.transition = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
+    };
+
+    const onMove = (e) => {
+      if (!this._isDragging) return;
+      e.preventDefault();
+      const cx = e.clientX || e.touches?.[0]?.clientX || 0;
+      const cy = e.clientY || e.touches?.[0]?.clientY || 0;
+      let x = cx - this._dragOffset.x;
+      let y = cy - this._dragOffset.y;
+      x = Math.max(0, Math.min(x, window.innerWidth - this.el.offsetWidth));
+      y = Math.max(0, Math.min(y, window.innerHeight - this.el.offsetHeight));
+      this.el.style.left = x + 'px';
+      this.el.style.top = y + 'px';
+    };
+
+    const onEnd = () => {
+      this._isDragging = false;
+      this.el.style.transition = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+    };
+
+    header.addEventListener('mousedown', onStart);
+    header.addEventListener('touchstart', onStart, { passive: false });
   }
 
   _renderMsg(msg, petName) {
     const isUser = msg.role === 'user';
     const avatar = isUser ? '👤' : '🐱';
-    const name = isUser ? '你' : petName;
     const bg = isUser ? 'linear-gradient(135deg,#667eea,#764ba2)' : '#f5f5f5';
     const color = isUser ? '#fff' : '#333';
     const align = isUser ? 'flex-end' : 'flex-start';

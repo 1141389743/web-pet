@@ -232,11 +232,15 @@ class WebPet {
       onSend: async (text) => {
         this.chatPanel.setLoading(true);
         this.emotion.onInteract('chat');
+        // 宠物思考动画
+        this.petActions.execute('peek');
         try {
           const reply = await this.chatEngine.chat(text);
           this.chatPanel.setLoading(false);
           this.chatPanel.refresh();
           this.bubble.show(reply, 4000);
+          // 根据回复内容触发宠物动作
+          this._reactChatToAction(reply);
           this.aiBehavior.reactToInteraction('chat', text).catch(() => {});
         } catch (e) {
           this.chatPanel.setLoading(false);
@@ -424,6 +428,38 @@ class WebPet {
     this.skinManager.applySkin(id);
     this._saveConfig();
     this.bubble.show('🎨 已切换', 1500);
+  }
+
+  /**
+   * 根据 AI 回复内容触发宠物动作
+   */
+  _reactChatToAction(text) {
+    const t = text.toLowerCase();
+    const actions = [
+      [/[开心|高兴|哈哈|嘿嘿|嘻嘻|太好|不错|棒|赞|耶|🎉|😄|😊]/, ['dance', 'bounce', 'heart']],
+      [/[生气|哼|讨厌|烦|气死|😤|😡|💢]/, ['angry', 'shake']],
+      [/[困|累|睡觉|晚安|休息|💤|😴|🥱]/, ['sleep', 'stretch']],
+      [/[好奇|想知道|什么|为什么|怎么|真的吗|🤔|🧐]/, ['peek', 'curious']],
+      [/[飞|旋转|转圈|飘|🌀]/, ['spin', 'float']],
+      [/[嗨|你好|嘿|👋|在吗|来了]/, ['wave', 'bounce']],
+      [/[爱|喜欢|❤|💕|💖|抱]/, ['heart', 'sparkle']],
+      [/[厉害|wow|amazing|太强|分身|影分身|忍术]/, ['clone', 'sparkle']],
+      [/[冷|怕|抖|😨|🥶]/, ['shake']],
+      [/[无聊|闷|没意思]/, ['dance', 'spin']],
+    ];
+
+    for (const [pattern, acts] of actions) {
+      if (pattern.test(text)) {
+        const action = acts[Math.floor(Math.random() * acts.length)];
+        this.petActions.execute(action);
+        return;
+      }
+    }
+
+    // 默认：随机小动作
+    if (Math.random() > 0.5) {
+      this.petActions.execute(['wave', 'bounce', 'stretch'][Math.floor(Math.random() * 3)]);
+    }
   }
 
   _setWeatherCity() {
