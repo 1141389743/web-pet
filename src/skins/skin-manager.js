@@ -21,7 +21,22 @@ class SkinManager {
   }
 
   _registerBuiltinSkins() {
-    // emoji皮肤（默认，不需要图片）
+    // 写实 SVG 皮肤
+    this._realisticRenderer = new RealisticPetRenderer();
+    for (const pet of this._realisticRenderer.getPetList()) {
+      this.skins['real_' + pet.id] = {
+        name: pet.name,
+        version: '1.0',
+        author: 'system',
+        default_scale: 1.0,
+        _isRealistic: true,
+        _petType: pet.id,
+        hitbox: { x: 10, y: 10, width: 80, height: 80 },
+        animations: {}
+      };
+    }
+
+    // emoji皮肤
     this.skins['emoji_cat'] = {
       name: '🐱 小猫',
       version: '1.0',
@@ -94,7 +109,13 @@ class SkinManager {
     this.currentSkin = skin;
     this._currentBaseUrl = '';
 
-    if (skin._isEmoji) {
+    if (skin._isRealistic) {
+      // 写实皮肤：渲染 SVG
+      this.stateMachine.animator.stop();
+      const svg = this._realisticRenderer.render(skin._petType, 'neutral');
+      this.stateMachine.animator.setDefaultSVG(svg, skin._petType, this._realisticRenderer);
+      this.stateMachine.animator.showDefault();
+    } else if (skin._isEmoji) {
       // emoji皮肤：停止动画，显示emoji
       this.stateMachine.animator.stop();
       this.stateMachine.animator.setDefaultEmoji(skin.emoji);

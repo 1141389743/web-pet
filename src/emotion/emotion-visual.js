@@ -92,6 +92,14 @@ class EmotionVisual {
     // 更新光环
     this._updateAura(mood);
 
+    // 更新写实宠物表情
+    if (this.container.el.querySelector) {
+      const animator = this.container._animator;
+      if (animator && animator._realisticPetType) {
+        animator.updateRealisticMood(mood);
+      }
+    }
+
     // CSS 滤镜（影响所有子元素包括图片）
     this._applyFilters(el, mood, moods);
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Web 桌面宠物",
-  "version": "2.7.3",
+  "version": "2.8.0",
   "description": "悬浮桌面宠物，陪伴你的每一次网页浏览 🐱",
   "permissions": ["storage", "alarms", "activeTab"],
   "action": {

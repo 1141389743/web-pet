@@ -153,6 +153,30 @@ class PetAnimator {
    */
   setDefaultEmoji(emoji) {
     this._defaultPet.textContent = emoji || '🐱';
+    this._defaultPet.innerHTML = '';
+    this._defaultPet.style.fontSize = '';
+    this._defaultPet.textContent = emoji || '🐱';
+  }
+
+  /**
+   * 设置写实 SVG 宠物
+   */
+  setDefaultSVG(svg, petType, renderer) {
+    this._defaultPet.textContent = '';
+    this._defaultPet.innerHTML = svg;
+    this._defaultPet.style.fontSize = '0';
+    this._realisticPetType = petType;
+    this._realisticRenderer = renderer;
+  }
+
+  /**
+   * 更新写实宠物的情绪表情
+   */
+  updateRealisticMood(mood) {
+    if (this._realisticPetType && this._realisticRenderer) {
+      const svg = this._realisticRenderer.render(this._realisticPetType, mood);
+      this._defaultPet.innerHTML = svg;
+    }
   }
 
   /**

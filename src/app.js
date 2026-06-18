@@ -61,6 +61,7 @@ class WebPet {
 
     // 2. 动画器
     this.animator = new PetAnimator(this.container);
+    this.container._animator = this.animator; // 供情绪视觉系统访问
 
     // 3. 状态机
     this.stateMachine = new PetStateMachine(this.animator);
@@ -330,6 +331,16 @@ class WebPet {
       // 皮肤
       { label: '🎨 切换皮肤', isTitle: true },
       { label: '  📷 导入图片...', action: () => this._importImage() },
+      { label: '  — 写实形象 —', isTitle: true },
+      { label: '  🐱 猫咪', action: () => this._switchSkin('real_cat') },
+      { label: '  🐶 狗狗', action: () => this._switchSkin('real_dog') },
+      { label: '  🐰 兔子', action: () => this._switchSkin('real_rabbit') },
+      { label: '  🐹 仓鼠', action: () => this._switchSkin('real_hamster') },
+      { label: '  🦊 狐狸', action: () => this._switchSkin('real_fox') },
+      { label: '  🐼 熊猫', action: () => this._switchSkin('real_panda') },
+      { label: '  🐧 企鹅', action: () => this._switchSkin('real_penguin') },
+      { label: '  🦉 猫头鹰', action: () => this._switchSkin('real_owl') },
+      { label: '  — emoji 形象 —', isTitle: true },
       { label: '  🐱 小猫', action: () => this._switchSkin('emoji_cat') },
       { label: '  🐶 小狗', action: () => this._switchSkin('emoji_dog') },
       { label: '  🐰 兔子', action: () => this._switchSkin('emoji_bunny') },
