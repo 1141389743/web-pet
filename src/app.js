@@ -9,7 +9,7 @@ class WebPet {
       scale: 1.0,
       opacity: 1.0,
       edgeSnap: true,
-      skin: 'default_cat',
+      skin: 'emoji_cat',
       idleEnabled: true,
       idleInterval: 8000,
       hourlyEnabled: true,

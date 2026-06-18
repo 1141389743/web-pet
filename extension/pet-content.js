@@ -33,6 +33,8 @@
     }
     config = result.config || {};
     enabled = result.enabled !== false;
+    // 同步到localStorage（供WebPet内部读取）
+    try { localStorage.setItem('web_pet_config', JSON.stringify(config)); } catch {}
   } catch (e) {
     console.warn('[WebPet] 读取配置失败:', e);
   }
@@ -59,7 +61,7 @@
       scale: config.scale || 1.0,
       opacity: config.opacity || 1.0,
       edgeSnap: config.edgeSnap !== false,
-      skin: config.skin || 'default_cat',
+      skin: config.skin || 'emoji_cat',
       idleEnabled: config.idleEnabled !== false,
       idleInterval: config.idleInterval || 8000,
       hourlyEnabled: config.hourlyEnabled !== false,
@@ -111,9 +113,16 @@
           });
           break;
         case 'ADD_REMINDER':
-          if (msg.content && msg.minutes) {
-            pet.reminder.add(msg.content, Date.now() + msg.minutes * 60000);
-            pet.say('⏰ ' + msg.minutes + '分钟后提醒', 2000);
+          if (msg.content) {
+            const triggerAt = msg.triggerAt || (Date.now() + (msg.minutes || 30) * 60000);
+            const repeat = msg.repeat || 'none';
+            pet.reminder.add(msg.content, triggerAt, repeat);
+            const mins = Math.round((triggerAt - Date.now()) / 60000);
+            let timeText = '';
+            if (mins < 60) timeText = mins + '分钟';
+            else if (mins < 1440) timeText = Math.round(mins/60) + '小时';
+            else timeText = Math.round(mins/1440) + '天';
+            pet.say('⏰ ' + timeText + '后提醒', 2000);
           }
           sendResponse({ ok: true });
           break;

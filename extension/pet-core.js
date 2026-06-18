@@ -948,39 +948,66 @@ class SkinManager {
   }
 
   _registerBuiltinSkins() {
-    const base = this._getBaseUrl();
-    // 默认小猫
-    this.skins['default_cat'] = {
-      name: '默认小猫',
+    // emoji皮肤（默认，不需要图片）
+    this.skins['emoji_cat'] = {
+      name: '🐱 小猫',
       version: '1.0',
       author: 'system',
       default_scale: 1.0,
+      emoji: '🐱',
+      _isEmoji: true,
       hitbox: { x: 10, y: 10, width: 80, height: 80 },
-      animations: {
-        idle: { frames: [base+'skins/default_cat/idle_01.png', base+'skins/default_cat/idle_02.png'], fps: 8, loop: true },
-        clicked: { frames: [base+'skins/default_cat/clicked_01.png'], fps: 5, loop: false },
-        dragged: { frames: [base+'skins/default_cat/dragged_01.png'], fps: 5, loop: true },
-        happy: { frames: [base+'skins/default_cat/happy_01.png', base+'skins/default_cat/happy_02.png'], fps: 8, loop: false },
-        idle_action: { frames: [base+'skins/default_cat/idle_01.png', base+'skins/default_cat/idle_02.png'], fps: 6, loop: false },
-        walk: { frames: [base+'skins/default_cat/walk_01.png', base+'skins/default_cat/walk_02.png'], fps: 10, loop: false }
-      }
+      animations: {}
     };
-
-    // 蓝色小鸟
-    this.skins['blue_bird'] = {
-      name: '蓝色小鸟',
+    this.skins['emoji_dog'] = {
+      name: '🐶 小狗',
       version: '1.0',
       author: 'system',
-      default_scale: 0.8,
-      hitbox: { x: 10, y: 10, width: 70, height: 70 },
-      animations: {
-        idle: { frames: [base+'skins/blue_bird/idle_01.png', base+'skins/blue_bird/idle_02.png'], fps: 6, loop: true },
-        clicked: { frames: [base+'skins/blue_bird/clicked_01.png'], fps: 5, loop: false },
-        dragged: { frames: [base+'skins/blue_bird/dragged_01.png'], fps: 5, loop: true },
-        happy: { frames: [base+'skins/blue_bird/happy_01.png'], fps: 8, loop: false },
-        idle_action: { frames: [base+'skins/blue_bird/idle_01.png'], fps: 6, loop: false },
-        walk: { frames: [base+'skins/blue_bird/walk_01.png', base+'skins/blue_bird/walk_02.png'], fps: 10, loop: false }
-      }
+      default_scale: 1.0,
+      emoji: '🐶',
+      _isEmoji: true,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {}
+    };
+    this.skins['emoji_bunny'] = {
+      name: '🐰 兔子',
+      version: '1.0',
+      author: 'system',
+      default_scale: 1.0,
+      emoji: '🐰',
+      _isEmoji: true,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {}
+    };
+    this.skins['emoji_panda'] = {
+      name: '🐼 熊猫',
+      version: '1.0',
+      author: 'system',
+      default_scale: 1.0,
+      emoji: '🐼',
+      _isEmoji: true,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {}
+    };
+    this.skins['emoji_fox'] = {
+      name: '🦊 狐狸',
+      version: '1.0',
+      author: 'system',
+      default_scale: 1.0,
+      emoji: '🦊',
+      _isEmoji: true,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {}
+    };
+    this.skins['emoji_penguin'] = {
+      name: '🐧 企鹅',
+      version: '1.0',
+      author: 'system',
+      default_scale: 1.0,
+      emoji: '🐧',
+      _isEmoji: true,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {}
     };
   }
 
@@ -994,8 +1021,16 @@ class SkinManager {
     this.currentSkin = skin;
     this._currentBaseUrl = '';
 
-    this.stateMachine.loadFromSkin(skin, this._currentBaseUrl);
-    this.stateMachine.changeState('idle', true);
+    if (skin._isEmoji) {
+      // emoji皮肤：停止动画，显示emoji
+      this.stateMachine.animator.stop();
+      this.stateMachine.animator.setDefaultEmoji(skin.emoji);
+      this.stateMachine.animator.showDefault();
+    } else {
+      // 图片皮肤：加载帧动画
+      this.stateMachine.loadFromSkin(skin, this._currentBaseUrl);
+      this.stateMachine.changeState('idle', true);
+    }
 
     try { localStorage.setItem('web_pet_skin', skinId); } catch {}
     return true;
@@ -1640,7 +1675,7 @@ class WebPet {
       scale: 1.0,
       opacity: 1.0,
       edgeSnap: true,
-      skin: 'default_cat',
+      skin: 'emoji_cat',
       idleEnabled: true,
       idleInterval: 8000,
       hourlyEnabled: true,
