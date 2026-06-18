@@ -3194,6 +3194,845 @@ class MiniGames {
   }
 }
 /**
+ * 情绪引擎 - 宠物有情绪、性格、能量
+ * 情绪会影响动画、气泡语录、AI回复风格
+ */
+class EmotionEngine {
+  constructor() {
+    // 基础情绪值 (0-100)
+    this.moods = {
+      happy: 50,     // 开心
+      energy: 70,    // 精力
+      curious: 40,   // 好奇
+      lonely: 30,    // 孤独（长时间没互动会上升）
+      sleepy: 20     // 困倦（深夜会上升）
+    };
+
+    // 当前主导情绪
+    this.currentMood = 'neutral';
+    this._decayTimer = null;
+    this._lastInteraction = Date.now();
+    this._load();
+    this._startDecay();
+  }
+
+  _load() {
+    try {
+      const saved = localStorage.getItem('web_pet_emotions');
+      if (saved) {
+        const data = JSON.parse(saved);
+        Object.assign(this.moods, data.moods || {});
+        this._lastInteraction = data.lastInteraction || Date.now();
+      }
+    } catch {}
+  }
+
+  _save() {
+    try {
+      localStorage.setItem('web_pet_emotions', JSON.stringify({
+        moods: this.moods,
+        lastInteraction: this._lastInteraction
+      }));
+    } catch {}
+  }
+
+  /**
+   * 情绪自然衰减 - 每分钟调整一次
+   */
+  _startDecay() {
+    this._decayTimer = setInterval(() => {
+      const now = Date.now();
+      const hour = new Date().getHours();
+      const minsSinceInteract = (now - this._lastInteraction) / 60000;
+
+      // 精力随时间下降
+      this.moods.energy = Math.max(5, this.moods.energy - 0.3);
+
+      // 孤独感随不互动时间上升
+      if (minsSinceInteract > 10) {
+        this.moods.lonely = Math.min(100, this.moods.lonely + 0.5);
+      }
+
+      // 深夜困倦
+      if (hour >= 23 || hour < 6) {
+        this.moods.sleepy = Math.min(100, this.moods.sleepy + 1);
+      } else {
+        this.moods.sleepy = Math.max(0, this.moods.sleepy - 0.5);
+      }
+
+      // 开心自然衰减
+      this.moods.happy = Math.max(20, this.moods.happy - 0.2);
+
+      // 好奇心衰减
+      this.moods.curious = Math.max(10, this.moods.curious - 0.15);
+
+      this._updateCurrentMood();
+      this._save();
+    }, 60000);
+  }
+
+  /**
+   * 交互事件 - 影响情绪
+   */
+  onInteract(type) {
+    this._lastInteraction = Date.now();
+    this.moods.lonely = Math.max(0, this.moods.lonely - 15);
+
+    switch (type) {
+      case 'click':
+        this.moods.happy = Math.min(100, this.moods.happy + 8);
+        this.moods.curious = Math.min(100, this.moods.curious + 3);
+        break;
+      case 'drag':
+        this.moods.happy = Math.min(100, this.moods.happy + 5);
+        this.moods.energy = Math.min(100, this.moods.energy + 3);
+        break;
+      case 'chat':
+        this.moods.happy = Math.min(100, this.moods.happy + 12);
+        this.moods.lonely = Math.max(0, this.moods.lonely - 20);
+        this.moods.curious = Math.min(100, this.moods.curious + 10);
+        break;
+      case 'game':
+        this.moods.happy = Math.min(100, this.moods.happy + 10);
+        this.moods.energy = Math.min(100, this.moods.energy + 8);
+        this.moods.curious = Math.min(100, this.moods.curious + 5);
+        break;
+      case 'feed':
+        this.moods.energy = Math.min(100, this.moods.energy + 20);
+        this.moods.happy = Math.min(100, this.moods.happy + 6);
+        break;
+      case 'ignore':
+        // 长时间不互动
+        this.moods.lonely = Math.min(100, this.moods.lonely + 5);
+        this.moods.happy = Math.max(0, this.moods.happy - 3);
+        break;
+    }
+
+    this._updateCurrentMood();
+    this._save();
+  }
+
+  /**
+   * 天气影响情绪
+   */
+  onWeatherChange(weather) {
+    if (!weather) return;
+    const code = weather.code;
+
+    // 晴天开心
+    if (code === 113) {
+      this.moods.happy = Math.min(100, this.moods.happy + 5);
+      this.moods.energy = Math.min(100, this.moods.energy + 3);
+    }
+    // 雨天有点低落
+    else if ([176, 263, 266, 293, 296, 299, 302, 305, 308].includes(code)) {
+      this.moods.happy = Math.max(0, this.moods.happy - 3);
+      this.moods.sleepy = Math.min(100, this.moods.sleepy + 5);
+    }
+    // 雷暴紧张
+    else if ([200, 386, 389, 392, 395].includes(code)) {
+      this.moods.energy = Math.min(100, this.moods.energy + 10);
+      this.moods.curious = Math.min(100, this.moods.curious + 8);
+    }
+    // 雪兴奋
+    else if ([179, 182, 185, 227, 230].includes(code)) {
+      this.moods.happy = Math.min(100, this.moods.happy + 8);
+      this.moods.curious = Math.min(100, this.moods.curious + 10);
+    }
+
+    this._updateCurrentMood();
+    this._save();
+  }
+
+  /**
+   * 根据情绪值计算主导情绪
+   */
+  _updateCurrentMood() {
+    const m = this.moods;
+
+    if (m.sleepy > 70) { this.currentMood = 'sleepy'; return; }
+    if (m.lonely > 70) { this.currentMood = 'lonely'; return; }
+    if (m.happy > 75 && m.energy > 60) { this.currentMood = 'excited'; return; }
+    if (m.happy > 60) { this.currentMood = 'happy'; return; }
+    if (m.curious > 65) { this.currentMood = 'curious'; return; }
+    if (m.energy < 25) { this.currentMood = 'tired'; return; }
+    if (m.happy < 30) { this.currentMood = 'sad'; return; }
+    if (m.lonely > 50) { this.currentMood = 'clingy'; return; }
+
+    this.currentMood = 'neutral';
+  }
+
+  /**
+   * 获取当前情绪描述（供AI使用）
+   */
+  getMoodDescription() {
+    const desc = {
+      happy: '心情很好，活泼开朗',
+      excited: '超级兴奋，精力充沛，想玩',
+      curious: '充满好奇，想探索新事物',
+      lonely: '有点孤单，想要陪伴',
+      sleepy: '困了，想睡觉',
+      tired: '有点累，需要休息',
+      sad: '心情低落，需要安慰',
+      clingy: '粘人，想引起注意',
+      neutral: '平静正常'
+    };
+    return desc[this.currentMood] || '平静正常';
+  }
+
+  /**
+   * 获取情绪对应的动画状态
+   */
+  getMoodAnimation() {
+    const map = {
+      happy: 'happy',
+      excited: 'happy',
+      curious: 'idle_action',
+      lonely: 'idle',
+      sleepy: 'idle',
+      tired: 'idle',
+      sad: 'idle',
+      clingy: 'idle_action',
+      neutral: 'idle'
+    };
+    return map[this.currentMood] || 'idle';
+  }
+
+  /**
+   * 获取情绪 emoji
+   */
+  getMoodEmoji() {
+    const map = {
+      happy: '😊',
+      excited: '🤩',
+      curious: '🧐',
+      lonely: '🥺',
+      sleepy: '😴',
+      tired: '😮‍💨',
+      sad: '😢',
+      clingy: '😿',
+      neutral: '😺'
+    };
+    return map[this.currentMood] || '😺';
+  }
+
+  /**
+   * 重置情绪
+   */
+  reset() {
+    this.moods = { happy: 50, energy: 70, curious: 40, lonely: 20, sleepy: 20 };
+    this.currentMood = 'neutral';
+    this._lastInteraction = Date.now();
+    this._save();
+  }
+
+  destroy() {
+    clearInterval(this._decayTimer);
+  }
+}
+/**
+ * AI 行为驱动 - 通过大模型让宠物有自主行为
+ * 结合情绪、天气、时间、交互历史，生成上下文感知的行为
+ */
+class AIBehavior {
+  constructor(chatEngine, emotionEngine, bubble, container) {
+    this.chat = chatEngine;
+    this.emotion = emotionEngine;
+    this.bubble = bubble;
+    this.container = container;
+    this._thinkTimer = null;
+    this._lastThink = 0;
+    this._thinkInterval = 3 * 60000; // 每3分钟自主思考一次
+    this._actionQueue = [];
+    this._isActing = false;
+
+    // 行为回调
+    this.onAction = null; // (action) => void
+    this.onStateChange = null; // (state) => void
+  }
+
+  /**
+   * 启动自主行为循环
+   */
+  start() {
+    this._stop();
+    const loop = () => {
+      const delay = this._thinkInterval + Math.random() * 60000;
+      this._thinkTimer = setTimeout(() => {
+        this._autonomousThink();
+        loop();
+      }, delay);
+    };
+    loop();
+  }
+
+  _stop() {
+    clearTimeout(this._thinkTimer);
+  }
+
+  /**
+   * 自主思考 - 根据当前状态决定行为
+   */
+  async _autonomousThink() {
+    if (!this.chat.isConfigured()) return;
+    if (this._isActing) return;
+
+    const now = Date.now();
+    if (now - this._lastThink < 60000) return;
+    this._lastThink = now;
+
+    const context = this._buildContext();
+    try {
+      const response = await this.chat.chat(
+        `[系统] 你是桌面宠物，请根据当前状态决定行为。` +
+        `只回复JSON格式：{"action":"行为名","msg":"要说的话","emotion":"情绪"}` +
+        `可用行为：idle, walk, happy, dance, spin, wave, sleep, peek, clone, stretch, curios` +
+        `当前状态：${context}`
+      );
+
+      const parsed = this._parseResponse(response);
+      if (parsed) {
+        this._executeBehavior(parsed);
+      }
+    } catch (e) {
+      // 静默失败
+      console.warn('[AIBehavior] think fail:', e.message);
+    }
+  }
+
+  /**
+   * 用户交互后的即时反应
+   */
+  async reactToInteraction(type, detail) {
+    if (!this.chat.isConfigured()) return;
+
+    const moodDesc = this.emotion.getMoodDescription();
+    const prompt = this._buildReactionPrompt(type, detail, moodDesc);
+
+    try {
+      const response = await this.chat.chat(prompt);
+      const parsed = this._parseResponse(response);
+      if (parsed) {
+        this._executeBehavior(parsed);
+      }
+    } catch (e) {
+      // 降级：用情绪系统生成反应
+      this._fallbackReaction(type);
+    }
+  }
+
+  _buildReactionPrompt(type, detail, mood) {
+    const prompts = {
+      click: `[系统] 用户点击了你。你${mood}。回复JSON：{"msg":"要说的话","emotion":"情绪","action":"动作"}`,
+      drag: `[系统] 用户把你拖来拖去。你${mood}。回复JSON：{"msg":"反应","emotion":"情绪"}`,
+      chat: `[系统] 用户说：「${detail}」。你${mood}。以宠物身份回复JSON：{"msg":"回复","emotion":"情绪","action":"动作"}`,
+      game_win: `[系统] 用户赢了游戏。你${mood}。回复JSON：{"msg":"反应","emotion":"情绪"}`,
+      game_lose: `[系统] 用户输了游戏。你${mood}。回复JSON：{"msg":"安慰","emotion":"情绪"}`,
+      reminder: `[系统] 提醒触发了：${detail}。你${mood}。回复JSON：{"msg":"提醒内容","emotion":"情绪","action":"动作"}`,
+      weather: `[系统] 天气变了：${detail}。你${mood}。回复JSON：{"msg":"天气反应","emotion":"情绪"}`,
+      morning: `[系统] 早上好，新的一天。你${mood}。回复JSON：{"msg":"早安","emotion":"情绪","action":"happy"}`,
+      night: `[系统] 很晚了。你${mood}。回复JSON：{"msg":"晚安","emotion":"情绪","action":"sleep"}`
+    };
+    return prompts[type] || `[系统] ${type}。你${mood}。回复JSON：{"msg":"反应","emotion":"情绪"}`;
+  }
+
+  _buildContext() {
+    const m = this.emotion.moods;
+    const hour = new Date().getHours();
+    const timeDesc = hour < 6 ? '深夜' : hour < 12 ? '上午' : hour < 18 ? '下午' : '晚上';
+    return `情绪:${this.emotion.getMoodDescription()}, 精力:${Math.round(m.energy)}, 开心:${Math.round(m.happy)}, ` +
+      `孤独:${Math.round(m.lonely)}, 困倦:${Math.round(m.sleepy)}, 时间:${timeDesc}(${hour}点)`;
+  }
+
+  _parseResponse(text) {
+    try {
+      // 尝试提取JSON
+      const match = text.match(/\{[^}]+\}/);
+      if (match) {
+        const data = JSON.parse(match[0]);
+        return {
+          action: data.action || null,
+          msg: data.msg || '',
+          emotion: data.emotion || null
+        };
+      }
+    } catch {}
+    // 降级：纯文本作为消息
+    return { msg: text.slice(0, 100), action: null, emotion: null };
+  }
+
+  _executeBehavior(behavior) {
+    // 更新情绪
+    if (behavior.emotion) {
+      this._applyEmotionWord(behavior.emotion);
+    }
+
+    // 执行动作
+    if (behavior.action && this.onAction) {
+      this.onAction(behavior.action);
+    }
+
+    // 说话
+    if (behavior.msg) {
+      const duration = Math.max(3000, behavior.msg.length * 150);
+      this.bubble.show(this.emotion.getMoodEmoji() + ' ' + behavior.msg, duration);
+    }
+  }
+
+  _applyEmotionWord(word) {
+    const w = word.toLowerCase();
+    if (/开心|高兴|happy|开心/.test(w)) {
+      this.emotion.moods.happy = Math.min(100, this.emotion.moods.happy + 10);
+    }
+    if (/兴奋|excited|激动/.test(w)) {
+      this.emotion.moods.energy = Math.min(100, this.emotion.moods.energy + 10);
+      this.emotion.moods.happy = Math.min(100, this.emotion.moods.happy + 5);
+    }
+    if (/困|sleepy|累|tired/.test(w)) {
+      this.emotion.moods.sleepy = Math.min(100, this.emotion.moods.sleepy + 10);
+    }
+    if (/孤单|lonely|无聊/.test(w)) {
+      this.emotion.moods.lonely = Math.min(100, this.emotion.moods.lonely + 5);
+    }
+    if (/好奇|curious|interesting/.test(w)) {
+      this.emotion.moods.curious = Math.min(100, this.emotion.moods.curious + 10);
+    }
+  }
+
+  _fallbackReaction(type) {
+    const mood = this.emotion.currentMood;
+    const reactions = {
+      click: {
+        happy: ['你好呀~', '嘿嘿~', '摸摸头~', '今天心情不错！'],
+        excited: ['哇！来找我玩！', '我好开心！', '🎉'],
+        lonely: ['你终于来了...', '想你了', '别走开好不好'],
+        sleepy: ['嗯...打个哈欠~', '好困...', 'zzZ'],
+        sad: ['...嗯', '有点难过', '😢'],
+        curious: ['嗯？什么？', '你在做什么呀？', '让我看看！']
+      },
+      drag: {
+        happy: ['哇~飞起来了！', ' wheee~', '好刺激！'],
+        excited: ['再来再来！', '转圈圈！', '🎉'],
+        lonely: ['别放开我...', '你要带我去哪？'],
+        sleepy: ['别闹...困...', '嗯...'],
+        default: ['放我下来！', '晕了晕了~', '救命~']
+      }
+    };
+
+    const pool = reactions[type]?.[mood] || reactions[type]?.default || ['~'];
+    const msg = pool[Math.floor(Math.random() * pool.length)];
+    this.bubble.show(this.emotion.getMoodEmoji() + ' ' + msg, 3000);
+  }
+
+  destroy() {
+    this._stop();
+  }
+}
+/**
+ * 宠物动作系统 - 影分身、跳舞、旋转、招手等
+ * 纯CSS动画实现，不依赖额外精灵帧
+ */
+class PetActions {
+  constructor(container, bubble, emotion) {
+    this.container = container;
+    this.bubble = bubble;
+    this.emotion = emotion;
+    this._activeEffects = [];
+    this._injectStyles();
+  }
+
+  /**
+   * 执行动作
+   * @param {string} action - 动作名
+   */
+  execute(action) {
+    const actions = {
+      clone: () => this.shadowClone(),
+      dance: () => this.dance(),
+      spin: () => this.spin(),
+      wave: () => this.wave(),
+      sleep: () => this.sleep(),
+      peek: () => this.peek(),
+      stretch: () => this.stretch(),
+      bounce: () => this.bounce(),
+      shake: () => this.shake(),
+      float: () => this.float(),
+      sparkle: () => this.sparkle(),
+      heart: () => this.showHeart(),
+      angry: () => this.angry(),
+      hide: () => this.hide_peek(),
+      dizzy: () => this.dizzy()
+    };
+
+    const fn = actions[action];
+    if (fn) fn();
+  }
+
+  /**
+   * 影分身 - 宠物分裂出多个残影
+   */
+  shadowClone() {
+    const el = this.container.el;
+    const rect = el.getBoundingClientRect();
+    const clones = 4;
+
+    this.bubble.show('🐾 影分身之术！', 2000);
+
+    for (let i = 0; i < clones; i++) {
+      const clone = document.createElement('div');
+      clone.className = 'pet-clone';
+      Object.assign(clone.style, {
+        position: 'fixed',
+        left: (rect.left + (i - 1.5) * 60) + 'px',
+        top: (rect.top + Math.sin(i) * 30) + 'px',
+        width: rect.width + 'px',
+        height: rect.height + 'px',
+        backgroundImage: el.style.backgroundImage || '',
+        backgroundSize: 'contain',
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+        opacity: '0',
+        zIndex: '2147483640',
+        pointerEvents: 'none',
+        transition: 'all 0.4s ease'
+      });
+
+      // 如果宠物是emoji显示
+      const img = el.querySelector('img');
+      if (img) {
+        clone.style.backgroundImage = `url(${img.src})`;
+      } else {
+        clone.textContent = el.textContent || '🐱';
+        clone.style.display = 'flex';
+        clone.style.alignItems = 'center';
+        clone.style.justifyContent = 'center';
+        clone.style.fontSize = el.style.fontSize || '48px';
+      }
+
+      document.body.appendChild(clone);
+      this._activeEffects.push(clone);
+
+      // 分身出现动画
+      setTimeout(() => {
+        clone.style.opacity = '0.6';
+        clone.style.transform = `scale(0.8) rotate(${(i - 1.5) * 15}deg)`;
+      }, i * 100);
+
+      // 分身消失
+      setTimeout(() => {
+        clone.style.opacity = '0';
+        clone.style.transform = `scale(0.3) rotate(${(i - 1.5) * 30}deg) translateY(-50px)`;
+      }, 1200 + i * 150);
+
+      setTimeout(() => clone.remove(), 2000);
+    }
+
+    // 本体抖动
+    el.style.animation = 'pet-shake 0.15s ease 4';
+    setTimeout(() => el.style.animation = '', 600);
+  }
+
+  /**
+   * 跳舞 - 宠物左右摇摆+弹跳
+   */
+  dance() {
+    const el = this.container.el;
+    this.bubble.show('💃 嗨起来~', 2000);
+    el.style.animation = 'pet-dance 0.5s ease-in-out 6';
+    setTimeout(() => el.style.animation = '', 3000);
+  }
+
+  /**
+   * 旋转 - 360度旋转
+   */
+  spin() {
+    const el = this.container.el;
+    this.bubble.show('🌀 转圈圈~', 1500);
+    el.style.animation = 'pet-spin 0.8s ease-in-out 3';
+    setTimeout(() => el.style.animation = '', 2400);
+  }
+
+  /**
+   * 招手 - 左右摆动
+   */
+  wave() {
+    const el = this.container.el;
+    this.bubble.show('👋 嗨~', 1500);
+    el.style.animation = 'pet-wave 0.4s ease-in-out 5';
+    setTimeout(() => el.style.animation = '', 2000);
+  }
+
+  /**
+   * 睡觉 - ZZZ 动画
+   */
+  sleep() {
+    const el = this.container.el;
+    const rect = el.getBoundingClientRect();
+
+    // ZZZ 气泡
+    for (let i = 0; i < 3; i++) {
+      const z = document.createElement('div');
+      z.className = 'pet-zzz';
+      z.textContent = 'Z';
+      Object.assign(z.style, {
+        position: 'fixed',
+        left: (rect.right - 10 + i * 12) + 'px',
+        top: (rect.top - 10) + 'px',
+        fontSize: (14 + i * 6) + 'px',
+        fontWeight: '700',
+        color: '#667eea',
+        opacity: '0',
+        zIndex: '2147483645',
+        pointerEvents: 'none',
+        animation: `pet-zzz-rise ${1.5 + i * 0.3}s ease-out ${i * 0.4}s infinite`
+      });
+      document.body.appendChild(z);
+      this._activeEffects.push(z);
+      setTimeout(() => z.remove(), 5000);
+    }
+
+    // 宠物微微下垂
+    el.style.animation = 'pet-breathe 2s ease-in-out infinite';
+    setTimeout(() => el.style.animation = '', 8000);
+  }
+
+  /**
+   * 偷看 - 宠物缩小然后弹出
+   */
+  peek() {
+    const el = this.container.el;
+    this.bubble.show('👀 嘘...我在偷看', 1500);
+    el.style.animation = 'pet-peek 1.2s ease-in-out';
+    setTimeout(() => el.style.animation = '', 1200);
+  }
+
+  /**
+   * 伸懒腰
+   */
+  stretch() {
+    const el = this.container.el;
+    this.bubble.show('🥱 嗯~伸个懒腰', 1500);
+    el.style.animation = 'pet-stretch 1.5s ease-in-out';
+    setTimeout(() => el.style.animation = '', 1500);
+  }
+
+  /**
+   * 弹跳
+   */
+  bounce() {
+    const el = this.container.el;
+    this.bubble.show('⬆️ 蹦蹦跳跳~', 1500);
+    el.style.animation = 'pet-bounce 0.4s ease 5';
+    setTimeout(() => el.style.animation = '', 2000);
+  }
+
+  /**
+   * 抖动（害怕/冷）
+   */
+  shake() {
+    const el = this.container.el;
+    el.style.animation = 'pet-shake 0.1s ease 8';
+    setTimeout(() => el.style.animation = '', 800);
+  }
+
+  /**
+   * 漂浮
+   */
+  float() {
+    const el = this.container.el;
+    this.bubble.show('☁️ 飘飘~', 2000);
+    el.style.animation = 'pet-float 3s ease-in-out infinite';
+    setTimeout(() => el.style.animation = '', 6000);
+  }
+
+  /**
+   * 闪光特效
+   */
+  sparkle() {
+    const el = this.container.el;
+    const rect = el.getBoundingClientRect();
+
+    for (let i = 0; i < 8; i++) {
+      const star = document.createElement('div');
+      star.textContent = '✨';
+      const angle = (i / 8) * Math.PI * 2;
+      const radius = 50 + Math.random() * 30;
+      Object.assign(star.style, {
+        position: 'fixed',
+        left: (rect.left + rect.width / 2 + Math.cos(angle) * radius) + 'px',
+        top: (rect.top + rect.height / 2 + Math.sin(angle) * radius) + 'px',
+        fontSize: '14px',
+        opacity: '0',
+        zIndex: '2147483645',
+        pointerEvents: 'none',
+        transition: 'all 0.6s ease-out'
+      });
+      document.body.appendChild(star);
+      this._activeEffects.push(star);
+
+      setTimeout(() => {
+        star.style.opacity = '1';
+        star.style.transform = `scale(1.5) translate(${Math.cos(angle) * 20}px, ${Math.sin(angle) * 20}px)`;
+      }, i * 80);
+
+      setTimeout(() => {
+        star.style.opacity = '0';
+        star.style.transform = `scale(0) translate(${Math.cos(angle) * 40}px, ${Math.sin(angle) * 40}px)`;
+      }, 600 + i * 80);
+
+      setTimeout(() => star.remove(), 1500);
+    }
+  }
+
+  /**
+   * 爱心
+   */
+  showHeart() {
+    const el = this.container.el;
+    const rect = el.getBoundingClientRect();
+    const hearts = ['❤️', '💕', '💖', '💗'];
+
+    for (let i = 0; i < 5; i++) {
+      const heart = document.createElement('div');
+      heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+      Object.assign(heart.style, {
+        position: 'fixed',
+        left: (rect.left + rect.width / 2 + (Math.random() - 0.5) * 40) + 'px',
+        top: (rect.top - 10) + 'px',
+        fontSize: (16 + Math.random() * 10) + 'px',
+        opacity: '0',
+        zIndex: '2147483645',
+        pointerEvents: 'none',
+        animation: `pet-heart-rise ${1.5 + Math.random()}s ease-out ${i * 0.2}s forwards`
+      });
+      document.body.appendChild(heart);
+      this._activeEffects.push(heart);
+      setTimeout(() => heart.remove(), 3000);
+    }
+  }
+
+  /**
+   * 生气 - 变红+抖动
+   */
+  angry() {
+    const el = this.container.el;
+    this.bubble.show('😤 哼！', 1500);
+    el.style.filter = 'hue-rotate(-30deg) saturate(1.5)';
+    el.style.animation = 'pet-shake 0.1s ease 6';
+    setTimeout(() => {
+      el.style.filter = '';
+      el.style.animation = '';
+    }, 1000);
+  }
+
+  /**
+   * 探头探脑
+   */
+  hide_peek() {
+    const el = this.container.el;
+    this.bubble.show('🫣 嘘...', 1500);
+    el.style.animation = 'pet-hide-peek 2s ease-in-out';
+    setTimeout(() => el.style.animation = '', 2000);
+  }
+
+  /**
+   * 晕 - 转圈
+   */
+  dizzy() {
+    const el = this.container.el;
+    this.bubble.show('💫 晕了~', 2000);
+    el.style.animation = 'pet-dizzy 0.3s linear 10';
+    setTimeout(() => el.style.animation = '', 3000);
+  }
+
+  _injectStyles() {
+    if (document.getElementById('pet-actions-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'pet-actions-styles';
+    s.textContent = `
+      @keyframes pet-dance {
+        0%, 100% { transform: scale(var(--pet-scale,1)) rotate(0deg); }
+        25% { transform: scale(var(--pet-scale,1)) rotate(-15deg) translateY(-10px); }
+        50% { transform: scale(var(--pet-scale,1)) rotate(15deg) translateY(-5px); }
+        75% { transform: scale(var(--pet-scale,1)) rotate(-10deg) translateY(-10px); }
+      }
+      @keyframes pet-spin {
+        from { transform: scale(var(--pet-scale,1)) rotate(0deg); }
+        to { transform: scale(var(--pet-scale,1)) rotate(360deg); }
+      }
+      @keyframes pet-wave {
+        0%, 100% { transform: scale(var(--pet-scale,1)) rotate(0deg); }
+        50% { transform: scale(var(--pet-scale,1)) rotate(20deg); }
+      }
+      @keyframes pet-shake {
+        0%, 100% { transform: scale(var(--pet-scale,1)) translateX(0); }
+        25% { transform: scale(var(--pet-scale,1)) translateX(-5px); }
+        75% { transform: scale(var(--pet-scale,1)) translateX(5px); }
+      }
+      @keyframes pet-bounce {
+        0%, 100% { transform: scale(var(--pet-scale,1)) translateY(0); }
+        50% { transform: scale(var(--pet-scale,1)) translateY(-20px); }
+      }
+      @keyframes pet-peek {
+        0% { transform: scale(var(--pet-scale,1)); opacity: 1; }
+        30% { transform: scale(calc(var(--pet-scale,1) * 0.3)); opacity: 0.3; }
+        60% { transform: scale(calc(var(--pet-scale,1) * 0.3)); opacity: 0.3; }
+        100% { transform: scale(var(--pet-scale,1)); opacity: 1; }
+      }
+      @keyframes pet-stretch {
+        0% { transform: scale(var(--pet-scale,1)); }
+        30% { transform: scale(calc(var(--pet-scale,1) * 1.3)) scaleY(0.8); }
+        60% { transform: scale(calc(var(--pet-scale,1) * 0.9)) scaleY(1.2); }
+        100% { transform: scale(var(--pet-scale,1)); }
+      }
+      @keyframes pet-float {
+        0%, 100% { transform: scale(var(--pet-scale,1)) translateY(0); }
+        50% { transform: scale(var(--pet-scale,1)) translateY(-15px); }
+      }
+      @keyframes pet-breathe {
+        0%, 100% { transform: scale(var(--pet-scale,1)); }
+        50% { transform: scale(calc(var(--pet-scale,1) * 1.03)); }
+      }
+      @keyframes pet-zzz-rise {
+        0% { opacity: 0; transform: translateY(0) scale(0.5); }
+        30% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
+      }
+      @keyframes pet-heart-rise {
+        0% { opacity: 0; transform: translateY(0) scale(0.5); }
+        20% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-80px) scale(1.5); }
+      }
+      @keyframes pet-hide-peek {
+        0% { transform: scale(var(--pet-scale,1)) translateX(0); }
+        20% { transform: scale(var(--pet-scale,1)) translateX(-30px); opacity: 0.3; }
+        40% { transform: scale(var(--pet-scale,1)) translateX(-30px); opacity: 0.3; }
+        50% { transform: scale(var(--pet-scale,1)) translateX(30px); opacity: 0.3; }
+        60% { transform: scale(var(--pet-scale,1)) translateX(30px); opacity: 0.8; }
+        80% { transform: scale(var(--pet-scale,1)) translateX(0); opacity: 1; }
+        100% { transform: scale(var(--pet-scale,1)); opacity: 1; }
+      }
+      @keyframes pet-dizzy {
+        from { transform: scale(var(--pet-scale,1)) rotate(0deg); }
+        to { transform: scale(var(--pet-scale,1)) rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  /**
+   * 清除所有特效
+   */
+  clearEffects() {
+    this._activeEffects.forEach(el => el.remove());
+    this._activeEffects = [];
+  }
+
+  destroy() {
+    this.clearEffects();
+  }
+}
+/**
  * 聊天引擎 - 接入 OpenAI 兼容 API
  * 支持自定义 endpoint、key、model
  */
@@ -4230,12 +5069,19 @@ class WebPet {
     this.mouse = new MouseHandler(this.container, this.stateMachine);
     this.mouse.onClick = () => {
       this.plugins.trigger('click');
-      // 单击宠物也弹出快捷面板
+      this.emotion.onInteract('click');
+      this.aiBehavior.reactToInteraction('click');
       if (this.quickPanel.visible) {
         this.quickPanel.hide();
       }
     };
-    this.mouse.onHover = () => this.plugins.trigger('hover');
+    this.mouse.onHover = () => {
+      this.plugins.trigger('hover');
+      this.emotion.onInteract('click');
+    };
+    this.mouse.onDrag = () => {
+      this.emotion.onInteract('drag');
+    };
     this.mouse.onDoubleClick = () => {
       // 双击打开快捷面板
       const rect = this.container.el.getBoundingClientRect();
@@ -4251,6 +5097,8 @@ class WebPet {
     this.reminder = new ReminderTool();
     this.reminder.onTrigger = (r) => {
       this._showReminderCenter(r.content);
+      this.emotion.onInteract('click');
+      this.aiBehavior.reactToInteraction('reminder', r.content);
     };
 
     this.hourly = new HourlyTool();
@@ -4262,8 +5110,13 @@ class WebPet {
         `现在是 ${hour}:00`, `${hour}点了~`,
         hour < 12 ? '上午好！' : hour < 18 ? '下午好！' : '晚上好！'
       ];
-      // 整点也移到中间提示
       this._showReminderCenter(texts[Math.floor(Math.random() * texts.length)]);
+      this.emotion.onInteract('click');
+      if (hour >= 23 || hour < 6) {
+        this.aiBehavior.reactToInteraction('night');
+      } else if (hour >= 6 && hour < 10) {
+        this.aiBehavior.reactToInteraction('morning');
+      }
     };
 
     this.notepad = new NotepadTool();
@@ -4319,6 +5172,9 @@ class WebPet {
     // 迷你游戏
     this.games = new MiniGames(this.bubble, this.container);
 
+    // 情绪引擎
+    this.emotion = new EmotionEngine();
+
     // 聊天引擎
     this.chatEngine = new ChatEngine();
 
@@ -4329,11 +5185,13 @@ class WebPet {
       isConfigured: () => this.chatEngine.isConfigured(),
       onSend: async (text) => {
         this.chatPanel.setLoading(true);
+        this.emotion.onInteract('chat');
         try {
           const reply = await this.chatEngine.chat(text);
           this.chatPanel.setLoading(false);
           this.chatPanel.refresh();
           this.bubble.show(reply, 4000);
+          this.aiBehavior.reactToInteraction('chat', text).catch(() => {});
         } catch (e) {
           this.chatPanel.setLoading(false);
           this.bubble.show('😿 ' + e.message, 3000);
@@ -4344,16 +5202,25 @@ class WebPet {
       onOpenSettings: () => this.settings.show()
     });
 
+    // 宠物动作系统
+    this.petActions = new PetActions(this.container, this.bubble, this.emotion);
+
+    // AI 行为驱动
+    this.aiBehavior = new AIBehavior(this.chatEngine, this.emotion, this.bubble, this.container);
+    this.aiBehavior.onAction = (action) => this.petActions.execute(action);
+    this.aiBehavior.start();
+
     // 天气系统
     this.weather = new WeatherSystem(this.container, this.bubble);
 
-    // 天气通知卡片（右上角，显示1分钟后自动收起）
+    // 天气通知卡片（右上角，显示10秒后自动收起）
     this.weatherWidget = new WeatherWidget();
     this.weather.onWeatherUpdate = (w) => {
-      // 动态调整位置，避免与提醒组件重叠
+      this.emotion.onWeatherChange(w);
       const offset = this.reminderWidget?.getHeight() || 0;
       this.weatherWidget.setTopOffset(12 + offset);
       this.weatherWidget.show(w);
+      this.aiBehavior.reactToInteraction('weather', `${w.desc} ${w.temp}°C`);
     };
 
     // 提醒列表组件（右上角，有提醒时显示，带数量徽章）
@@ -4423,6 +5290,19 @@ class WebPet {
         const rect = this.container.el.getBoundingClientRect();
         this.chatPanel.show(rect.left, rect.top);
       }},
+      { divider: true },
+      // 宠物动作
+      { label: `🐾 宠物动作 ${this.emotion.getMoodEmoji()}`, isTitle: true },
+      { label: '  🌀 影分身', action: () => this.petActions.execute('clone') },
+      { label: '  💃 跳舞', action: () => this.petActions.execute('dance') },
+      { label: '  🔄 旋转', action: () => this.petActions.execute('spin') },
+      { label: '  👋 招手', action: () => this.petActions.execute('wave') },
+      { label: '  💤 睡觉', action: () => this.petActions.execute('sleep') },
+      { label: '  👀 偷看', action: () => this.petActions.execute('peek') },
+      { label: '  🥱 伸懒腰', action: () => this.petActions.execute('stretch') },
+      { label: '  💖 爱心', action: () => this.petActions.execute('heart') },
+      { label: '  ✨ 闪光', action: () => this.petActions.execute('sparkle') },
+      { label: '  🫣 探头', action: () => this.petActions.execute('hide') },
       { divider: true },
       // 小游戏
       { label: '🎮 小游戏', isTitle: true },
@@ -4685,6 +5565,9 @@ class WebPet {
     this.reminderWidget?.destroy();
     this.weatherWidget?.destroy();
     this.chatPanel?.destroy();
+    this.aiBehavior?.destroy();
+    this.petActions?.destroy();
+    this.emotion?.destroy();
   }
 }
 

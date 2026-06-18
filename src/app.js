@@ -115,12 +115,19 @@ class WebPet {
     this.mouse = new MouseHandler(this.container, this.stateMachine);
     this.mouse.onClick = () => {
       this.plugins.trigger('click');
-      // 单击宠物也弹出快捷面板
+      this.emotion.onInteract('click');
+      this.aiBehavior.reactToInteraction('click');
       if (this.quickPanel.visible) {
         this.quickPanel.hide();
       }
     };
-    this.mouse.onHover = () => this.plugins.trigger('hover');
+    this.mouse.onHover = () => {
+      this.plugins.trigger('hover');
+      this.emotion.onInteract('click');
+    };
+    this.mouse.onDrag = () => {
+      this.emotion.onInteract('drag');
+    };
     this.mouse.onDoubleClick = () => {
       // 双击打开快捷面板
       const rect = this.container.el.getBoundingClientRect();
@@ -136,6 +143,8 @@ class WebPet {
     this.reminder = new ReminderTool();
     this.reminder.onTrigger = (r) => {
       this._showReminderCenter(r.content);
+      this.emotion.onInteract('click');
+      this.aiBehavior.reactToInteraction('reminder', r.content);
     };
 
     this.hourly = new HourlyTool();
@@ -147,8 +156,13 @@ class WebPet {
         `现在是 ${hour}:00`, `${hour}点了~`,
         hour < 12 ? '上午好！' : hour < 18 ? '下午好！' : '晚上好！'
       ];
-      // 整点也移到中间提示
       this._showReminderCenter(texts[Math.floor(Math.random() * texts.length)]);
+      this.emotion.onInteract('click');
+      if (hour >= 23 || hour < 6) {
+        this.aiBehavior.reactToInteraction('night');
+      } else if (hour >= 6 && hour < 10) {
+        this.aiBehavior.reactToInteraction('morning');
+      }
     };
 
     this.notepad = new NotepadTool();
@@ -204,6 +218,9 @@ class WebPet {
     // 迷你游戏
     this.games = new MiniGames(this.bubble, this.container);
 
+    // 情绪引擎
+    this.emotion = new EmotionEngine();
+
     // 聊天引擎
     this.chatEngine = new ChatEngine();
 
@@ -214,11 +231,13 @@ class WebPet {
       isConfigured: () => this.chatEngine.isConfigured(),
       onSend: async (text) => {
         this.chatPanel.setLoading(true);
+        this.emotion.onInteract('chat');
         try {
           const reply = await this.chatEngine.chat(text);
           this.chatPanel.setLoading(false);
           this.chatPanel.refresh();
           this.bubble.show(reply, 4000);
+          this.aiBehavior.reactToInteraction('chat', text).catch(() => {});
         } catch (e) {
           this.chatPanel.setLoading(false);
           this.bubble.show('😿 ' + e.message, 3000);
@@ -229,16 +248,25 @@ class WebPet {
       onOpenSettings: () => this.settings.show()
     });
 
+    // 宠物动作系统
+    this.petActions = new PetActions(this.container, this.bubble, this.emotion);
+
+    // AI 行为驱动
+    this.aiBehavior = new AIBehavior(this.chatEngine, this.emotion, this.bubble, this.container);
+    this.aiBehavior.onAction = (action) => this.petActions.execute(action);
+    this.aiBehavior.start();
+
     // 天气系统
     this.weather = new WeatherSystem(this.container, this.bubble);
 
-    // 天气通知卡片（右上角，显示1分钟后自动收起）
+    // 天气通知卡片（右上角，显示10秒后自动收起）
     this.weatherWidget = new WeatherWidget();
     this.weather.onWeatherUpdate = (w) => {
-      // 动态调整位置，避免与提醒组件重叠
+      this.emotion.onWeatherChange(w);
       const offset = this.reminderWidget?.getHeight() || 0;
       this.weatherWidget.setTopOffset(12 + offset);
       this.weatherWidget.show(w);
+      this.aiBehavior.reactToInteraction('weather', `${w.desc} ${w.temp}°C`);
     };
 
     // 提醒列表组件（右上角，有提醒时显示，带数量徽章）
@@ -308,6 +336,19 @@ class WebPet {
         const rect = this.container.el.getBoundingClientRect();
         this.chatPanel.show(rect.left, rect.top);
       }},
+      { divider: true },
+      // 宠物动作
+      { label: `🐾 宠物动作 ${this.emotion.getMoodEmoji()}`, isTitle: true },
+      { label: '  🌀 影分身', action: () => this.petActions.execute('clone') },
+      { label: '  💃 跳舞', action: () => this.petActions.execute('dance') },
+      { label: '  🔄 旋转', action: () => this.petActions.execute('spin') },
+      { label: '  👋 招手', action: () => this.petActions.execute('wave') },
+      { label: '  💤 睡觉', action: () => this.petActions.execute('sleep') },
+      { label: '  👀 偷看', action: () => this.petActions.execute('peek') },
+      { label: '  🥱 伸懒腰', action: () => this.petActions.execute('stretch') },
+      { label: '  💖 爱心', action: () => this.petActions.execute('heart') },
+      { label: '  ✨ 闪光', action: () => this.petActions.execute('sparkle') },
+      { label: '  🫣 探头', action: () => this.petActions.execute('hide') },
       { divider: true },
       // 小游戏
       { label: '🎮 小游戏', isTitle: true },
@@ -570,6 +611,9 @@ class WebPet {
     this.reminderWidget?.destroy();
     this.weatherWidget?.destroy();
     this.chatPanel?.destroy();
+    this.aiBehavior?.destroy();
+    this.petActions?.destroy();
+    this.emotion?.destroy();
   }
 }
 
