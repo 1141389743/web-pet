@@ -1752,8 +1752,7 @@ class WebPet {
     // 8. 工具
     this.reminder = new ReminderTool();
     this.reminder.onTrigger = (r) => {
-      this.bubble.show('⏰ ' + r.content, 5000, 'reminder');
-      this.stateMachine.changeState('happy');
+      this._showReminderCenter(r.content);
     };
 
     this.hourly = new HourlyTool();
@@ -1765,7 +1764,8 @@ class WebPet {
         `现在是 ${hour}:00`, `${hour}点了~`,
         hour < 12 ? '上午好！' : hour < 18 ? '下午好！' : '晚上好！'
       ];
-      this.bubble.show(texts[Math.floor(Math.random() * texts.length)], 4000, 'hourly');
+      // 整点也移到中间提示
+      this._showReminderCenter(texts[Math.floor(Math.random() * texts.length)]);
     };
 
     this.notepad = new NotepadTool();
@@ -1859,6 +1859,53 @@ class WebPet {
     if (pinned.length > 0) {
       setTimeout(() => this.bubble.show('📝 ' + pinned[0].text, 4000), 2000);
     }
+  }
+
+  /**
+   * 提醒触发：宠物移到屏幕中间，大字提示
+   */
+  _showReminderCenter(content) {
+    const el = this.container.el;
+    const oldLeft = el.style.left;
+    const oldTop = el.style.top;
+    const oldTransition = el.style.transition;
+
+    // 保存当前位置
+    const savedPos = { ...this.container.position };
+
+    // 移到屏幕中间
+    const centerX = (window.innerWidth - this.container.size * this.container.scale) / 2;
+    const centerY = (window.innerHeight - this.container.size * this.container.scale) / 2 - 30;
+
+    el.style.transition = 'left 0.6s cubic-bezier(0.34,1.56,0.64,1), top 0.6s cubic-bezier(0.34,1.56,0.64,1)';
+    this.container.setPosition(centerX, centerY);
+    this.stateMachine.changeState('happy');
+
+    // 显示大号提醒气泡
+    setTimeout(() => {
+      this.bubble.show('⏰ ' + content, 5000, 'reminder');
+      // 晃动动画
+      el.style.transition = 'transform 0.15s ease';
+      let shakeCount = 0;
+      const shake = () => {
+        if (shakeCount >= 6) {
+          el.style.transform = `scale(${this.container.scale})`;
+          return;
+        }
+        el.style.transform = `scale(${this.container.scale}) rotate(${shakeCount % 2 === 0 ? '8deg' : '-8deg'})`;
+        shakeCount++;
+        setTimeout(shake, 150);
+      };
+      shake();
+    }, 700);
+
+    // 5秒后自动回到原位
+    setTimeout(() => {
+      el.style.transition = 'left 0.5s ease, top 0.5s ease, transform 0.3s ease';
+      this.container.setPosition(savedPos.x, savedPos.y);
+      el.style.transform = `scale(${this.container.scale})`;
+      this.stateMachine.changeState('idle');
+    }, 6000);
   }
 
   _importImage() {
