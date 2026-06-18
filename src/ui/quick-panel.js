@@ -178,7 +178,7 @@ class QuickPanel {
   }
 
   _bindEvents() {
-    const $ = id => this.el.querySelector(id);
+    const $ = id => this.el.querySelector('#' + id);
 
     // 关闭
     $('qp-close').onclick = () => this.hide();
