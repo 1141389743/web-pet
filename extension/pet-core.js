@@ -1526,18 +1526,29 @@ class ContextMenu {
       }
       const row = document.createElement('div');
       row.textContent = item.label;
-      Object.assign(row.style, {
-        padding: '8px 16px',
-        cursor: 'pointer',
-        transition: 'background 0.15s'
-      });
-      row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
-      row.addEventListener('mouseleave', () => row.style.background = '');
-      row.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.hide();
-        if (item.action) item.action();
-      });
+      if (item.isTitle) {
+        Object.assign(row.style, {
+          padding: '6px 16px 2px',
+          fontSize: '11px',
+          color: '#999',
+          fontWeight: '600',
+          cursor: 'default'
+        });
+      } else {
+        Object.assign(row.style, {
+          padding: '7px 16px',
+          cursor: 'pointer',
+          transition: 'background 0.15s',
+          fontSize: '13px'
+        });
+        row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
+        row.addEventListener('mouseleave', () => row.style.background = '');
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.hide();
+          if (item.action) item.action();
+        });
+      }
       this.el.appendChild(row);
     });
 
@@ -2276,15 +2287,71 @@ class WebPet {
 
   _showContextMenu(e) {
     if (!this._contextMenu) this._contextMenu = new ContextMenu();
+    const pinned = this.notepad.getPinned();
+    const customSkins = this.skinManager.getSkinList().filter(s => s.id.startsWith('custom_'));
+
     this._contextMenu.show(e.clientX, e.clientY, [
+      // 提醒
+      { label: '⏰ 快速提醒', isTitle: true },
+      { label: '  5 分钟后提醒', action: () => this._setQuickTimer(5) },
+      { label: '  10 分钟后提醒', action: () => this._setQuickTimer(10) },
+      { label: '  15 分钟后提醒', action: () => this._setQuickTimer(15) },
+      { label: '  30 分钟后提醒', action: () => this._setQuickTimer(30) },
+      { label: '  1 小时后提醒', action: () => this._setQuickTimer(60) },
+      { label: '  自定义提醒...', action: () => this._customTimer() },
+      { divider: true },
+      // 便签
+      { label: '📝 快捷便签', isTitle: true },
+      { label: '  新建便签...', action: () => this._addNote() },
+      ...pinned.map(n => ({ label: '  📌 ' + n.text, action: () => this.bubble.show('📝 ' + n.text, 3000) })),
+      { divider: true },
+      // 皮肤
+      { label: '🎨 切换皮肤', isTitle: true },
+      { label: '  📷 导入图片...', action: () => this._importImage() },
+      { label: '  🐱 小猫', action: () => this._switchSkin('emoji_cat') },
+      { label: '  🐶 小狗', action: () => this._switchSkin('emoji_dog') },
+      { label: '  🐰 兔子', action: () => this._switchSkin('emoji_bunny') },
+      { label: '  🐼 熊猫', action: () => this._switchSkin('emoji_panda') },
+      { label: '  🦊 狐狸', action: () => this._switchSkin('emoji_fox') },
+      { label: '  🐧 企鹅', action: () => this._switchSkin('emoji_penguin') },
+      ...customSkins.map(s => ({ label: '  🖼️ ' + s.name, action: () => this._switchSkin(s.id) })),
+      { divider: true },
+      // 工具
       { label: '👁️ 显示/隐藏', action: () => this.container.toggle() },
       { label: '📍 重置位置', action: () => this.container.resetPosition() },
-      { divider: true },
-      { label: '💬 随机语录', action: () => this.bubble.show(this.bubble.getRandomQuote('click')) },
-      { label: '📋 打开控制台', action: () => { const rect = this.container.el.getBoundingClientRect(); this.quickPanel.show(rect.left, rect.top); } },
-      { divider: true },
       { label: '⚙️ 设置', action: () => this.settings.show() }
     ]);
+  }
+
+  _setQuickTimer(minutes) {
+    const triggerAt = Date.now() + minutes * 60000;
+    this.reminder.add('时间到了~', triggerAt);
+    const label = minutes >= 60 ? (minutes/60) + '小时' : minutes + '分钟';
+    this.bubble.show('⏰ ' + label + '后提醒', 2000);
+  }
+
+  _customTimer() {
+    const text = prompt('提醒内容：') || '时间到了~';
+    const minStr = prompt('多少分钟后提醒？', '30');
+    if (minStr && !isNaN(minStr)) {
+      this.reminder.add(text, Date.now() + Number(minStr) * 60000);
+      this.bubble.show('⏰ ' + minStr + '分钟后提醒', 2000);
+    }
+  }
+
+  _addNote() {
+    const text = prompt('便签内容：');
+    if (text) {
+      this.notepad.add(text);
+      this.bubble.show('📝 已保存', 1500);
+    }
+  }
+
+  _switchSkin(id) {
+    this.options.skin = id;
+    this.skinManager.applySkin(id);
+    this._saveConfig();
+    this.bubble.show('🎨 已切换', 1500);
   }
 
   _showPinnedNote() {

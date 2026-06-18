@@ -40,18 +40,29 @@ class ContextMenu {
       }
       const row = document.createElement('div');
       row.textContent = item.label;
-      Object.assign(row.style, {
-        padding: '8px 16px',
-        cursor: 'pointer',
-        transition: 'background 0.15s'
-      });
-      row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
-      row.addEventListener('mouseleave', () => row.style.background = '');
-      row.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.hide();
-        if (item.action) item.action();
-      });
+      if (item.isTitle) {
+        Object.assign(row.style, {
+          padding: '6px 16px 2px',
+          fontSize: '11px',
+          color: '#999',
+          fontWeight: '600',
+          cursor: 'default'
+        });
+      } else {
+        Object.assign(row.style, {
+          padding: '7px 16px',
+          cursor: 'pointer',
+          transition: 'background 0.15s',
+          fontSize: '13px'
+        });
+        row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
+        row.addEventListener('mouseleave', () => row.style.background = '');
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.hide();
+          if (item.action) item.action();
+        });
+      }
       this.el.appendChild(row);
     });
 
