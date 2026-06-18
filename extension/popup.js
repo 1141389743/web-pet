@@ -99,47 +99,60 @@ $('settings-btn').addEventListener('click', () => {
   window.close();
 });
 
-// 初始化提醒时间默认值
-function initReminderTime() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() + 30);
-  const pad = n => String(n).padStart(2, '0');
-  const local = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  $('reminder-time').value = local;
-}
-
-// 快捷时间按钮
-function setQuickReminder(minutes) {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() + minutes);
-  const pad = n => String(n).padStart(2, '0');
-  const local = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  $('reminder-time').value = local;
-}
-
-$('rem-10m').addEventListener('click', () => setQuickReminder(10));
-$('rem-30m').addEventListener('click', () => setQuickReminder(30));
-$('rem-1h').addEventListener('click', () => setQuickReminder(60));
-$('rem-2h').addEventListener('click', () => setQuickReminder(120));
-
-$('add-reminder').addEventListener('click', () => {
-  const text = $('reminder-text').value.trim();
-  const timeStr = $('reminder-time').value;
-  if (!text) { alert('请输入提醒内容'); return; }
-  if (!timeStr) { alert('请选择提醒时间'); return; }
-
-  const triggerAt = new Date(timeStr).getTime();
-  if (isNaN(triggerAt) || triggerAt <= Date.now()) { alert('请选择未来的时间'); return; }
-
-  const repeat = $('reminder-repeat').checked ? 'daily' : 'none';
-  const minutes = Math.round((triggerAt - Date.now()) / 60000);
-
-  sendToTab({ type: 'ADD_REMINDER', content: text, minutes, triggerAt, repeat });
-  $('reminder-text').value = '';
-  initReminderTime();
-  setTimeout(() => window.close(), 500);
+// 快速倒计时按钮
+let selectedMinutes = 0;
+document.querySelectorAll('.timer-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // 取消其他选中
+    document.querySelectorAll('.timer-btn').forEach(b => {
+      b.style.background = '';
+      b.style.color = '';
+      b.style.borderColor = '';
+    });
+    // 选中当前
+    btn.style.background = '#FF6B81';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#FF6B81';
+    selectedMinutes = parseInt(btn.dataset.min);
+  });
 });
 
-initReminderTime();
+// 快速倒计时：点击任意timer-btn直接设置（双击确认）
+document.querySelectorAll('.timer-btn').forEach(btn => {
+  btn.addEventListener('dblclick', () => {
+    const text = $('reminder-text').value.trim() || '时间到了~';
+    const minutes = parseInt(btn.dataset.min);
+    const triggerAt = Date.now() + minutes * 60000;
+    sendToTab({ type: 'ADD_REMINDER', content: text, triggerAt, minutes });
+    $('reminder-text').value = '';
+    selectedMinutes = 0;
+    document.querySelectorAll('.timer-btn').forEach(b => {
+      b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+    });
+    window.close();
+  });
+});
+
+// 设闹钟
+$('add-alarm').addEventListener('click', () => {
+  const text = $('reminder-text').value.trim() || '闹钟响了~';
+  const timeStr = $('reminder-time').value;
+  if (!timeStr) { alert('请选择时间'); return; }
+
+  const [h, m] = timeStr.split(':').map(Number);
+  const now = new Date();
+  const target = new Date();
+  target.setHours(h, m, 0, 0);
+  // 如果选的时间已过，设为明天
+  if (target <= now) target.setDate(target.getDate() + 1);
+
+  const triggerAt = target.getTime();
+  const minutes = Math.round((triggerAt - Date.now()) / 60000);
+
+  sendToTab({ type: 'ADD_REMINDER', content: text, triggerAt, minutes });
+  $('reminder-text').value = '';
+  $('reminder-time').value = '';
+  window.close();
+});
 
 init();
