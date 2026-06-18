@@ -9,6 +9,7 @@ class WeatherWidget {
     this._tickFrame = null;
     this._shownAt = null;
     this.DISPLAY_MS = 10000; // 显示 10 秒
+    this._lastWeatherKey = ''; // 上次展示的天气摘要，避免重复弹出
     this._init();
   }
 
@@ -103,6 +104,11 @@ class WeatherWidget {
    */
   show(weather) {
     if (!weather) return;
+
+    // 构建天气摘要，数据未变化则不重新弹出
+    const key = `${weather.temp}|${weather.desc}|${weather.code}`;
+    if (key === this._lastWeatherKey) return;
+    this._lastWeatherKey = key;
 
     // 更新内容
     this.el.querySelector('.ww-emoji').textContent = this._emoji(weather.code);

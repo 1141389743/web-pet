@@ -2157,6 +2157,7 @@ class ReminderWidget {
     this._tickFrame = null;
     this._shownAt = null;
     this.DISPLAY_MS = 10000; // 10秒自动收起
+    this._lastCount = -1; // 上次提醒数量，-1 表示首次加载
     this._init();
   }
 
@@ -2229,7 +2230,7 @@ class ReminderWidget {
 
     // 定时刷新列表
     setInterval(() => this.refresh(), 10000);
-    this.refresh();
+    this.refresh(); // 首次调用会设置 _lastCount 但不会弹出
   }
 
   /**
@@ -2301,9 +2302,18 @@ class ReminderWidget {
 
     const wasVisible = this.el.style.display !== 'none' && this.el.style.opacity !== '0';
     const nowVisible = active.length > 0;
+    const countChanged = this._lastCount !== active.length;
+    const isFirstLoad = this._lastCount === -1;
+    this._lastCount = active.length;
 
-    if (nowVisible && !wasVisible) {
-      // 有新提醒，显示并计时
+    if (isFirstLoad) {
+      // 首次加载：只更新徽章数字，不弹出
+      if (this.onVisibilityChange) this.onVisibilityChange(0);
+      return;
+    }
+
+    if (countChanged && nowVisible && !wasVisible) {
+      // 提醒从无到有，或数量变化，弹出显示
       this._collapsed = false;
       this.el.querySelector('.rw-body').style.maxHeight = '300px';
       this.el.querySelector('.rw-chevron').style.transform = '';
@@ -2311,8 +2321,9 @@ class ReminderWidget {
       if (this.onVisibilityChange) this.onVisibilityChange(this.getHeight());
     } else if (!nowVisible && wasVisible) {
       this._hide();
-    } else if (nowVisible) {
-      // 内容变化但仍在显示，更新高度偏移
+    } else if (countChanged && nowVisible) {
+      // 数量变化但卡片仍在显示，刷新内容并重启计时
+      this._startAutoHide();
       if (this.onVisibilityChange) this.onVisibilityChange(this.getHeight());
     }
 
@@ -3029,6 +3040,7 @@ class WeatherWidget {
     this._tickFrame = null;
     this._shownAt = null;
     this.DISPLAY_MS = 10000; // 显示 10 秒
+    this._lastWeatherKey = ''; // 上次展示的天气摘要，避免重复弹出
     this._init();
   }
 
@@ -3123,6 +3135,11 @@ class WeatherWidget {
    */
   show(weather) {
     if (!weather) return;
+
+    // 构建天气摘要，数据未变化则不重新弹出
+    const key = `${weather.temp}|${weather.desc}|${weather.code}`;
+    if (key === this._lastWeatherKey) return;
+    this._lastWeatherKey = key;
 
     // 更新内容
     this.el.querySelector('.ww-emoji').textContent = this._emoji(weather.code);
