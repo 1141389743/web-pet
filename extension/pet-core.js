@@ -241,6 +241,17 @@ class PetAnimator {
       backgroundRepeat: 'no-repeat',
       imageRendering: 'auto'
     });
+    // 默认CSS宠物（无图片时显示）
+    this._defaultPet = document.createElement('div');
+    Object.assign(this._defaultPet.style, {
+      width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '64px', lineHeight: '1', userSelect: 'none',
+      position: 'absolute', top: '0', left: '0'
+    });
+    this._defaultPet.textContent = '🐱';
+    this.el.appendChild(this._defaultPet);
+    this._hasCustomImage = false;
     container.el.appendChild(this.el);
 
     this.frames = [];
@@ -356,11 +367,29 @@ class PetAnimator {
   _showFrame(index) {
     const img = this._imgCache[index];
     if (img) {
+      this._hasCustomImage = true;
+      this._defaultPet.style.display = 'none';
       this.el.style.backgroundImage = `url(${img.src})`;
       this.el.style.backgroundSize = 'contain';
       this.el.style.backgroundPosition = 'center';
       this.el.style.backgroundRepeat = 'no-repeat';
     }
+  }
+
+  /**
+   * 设置默认emoji宠物
+   */
+  setDefaultEmoji(emoji) {
+    this._defaultPet.textContent = emoji || '🐱';
+  }
+
+  /**
+   * 显示默认宠物（无自定义图片时）
+   */
+  showDefault() {
+    this._hasCustomImage = false;
+    this._defaultPet.style.display = 'flex';
+    this.el.style.backgroundImage = 'none';
   }
 
   /**
@@ -910,7 +939,16 @@ class SkinManager {
     this._registerBuiltinSkins();
   }
 
+  _getBaseUrl() {
+    // 检测是否在浏览器插件环境中
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+      return chrome.runtime.getURL('');
+    }
+    return '';
+  }
+
   _registerBuiltinSkins() {
+    const base = this._getBaseUrl();
     // 默认小猫
     this.skins['default_cat'] = {
       name: '默认小猫',
@@ -919,12 +957,12 @@ class SkinManager {
       default_scale: 1.0,
       hitbox: { x: 10, y: 10, width: 80, height: 80 },
       animations: {
-        idle: { frames: ['skins/default_cat/idle_01.png', 'skins/default_cat/idle_02.png'], fps: 8, loop: true },
-        clicked: { frames: ['skins/default_cat/clicked_01.png'], fps: 5, loop: false },
-        dragged: { frames: ['skins/default_cat/dragged_01.png'], fps: 5, loop: true },
-        happy: { frames: ['skins/default_cat/happy_01.png', 'skins/default_cat/happy_02.png'], fps: 8, loop: false },
-        idle_action: { frames: ['skins/default_cat/idle_01.png', 'skins/default_cat/idle_02.png'], fps: 6, loop: false },
-        walk: { frames: ['skins/default_cat/walk_01.png', 'skins/default_cat/walk_02.png'], fps: 10, loop: false }
+        idle: { frames: [base+'skins/default_cat/idle_01.png', base+'skins/default_cat/idle_02.png'], fps: 8, loop: true },
+        clicked: { frames: [base+'skins/default_cat/clicked_01.png'], fps: 5, loop: false },
+        dragged: { frames: [base+'skins/default_cat/dragged_01.png'], fps: 5, loop: true },
+        happy: { frames: [base+'skins/default_cat/happy_01.png', base+'skins/default_cat/happy_02.png'], fps: 8, loop: false },
+        idle_action: { frames: [base+'skins/default_cat/idle_01.png', base+'skins/default_cat/idle_02.png'], fps: 6, loop: false },
+        walk: { frames: [base+'skins/default_cat/walk_01.png', base+'skins/default_cat/walk_02.png'], fps: 10, loop: false }
       }
     };
 
@@ -936,12 +974,12 @@ class SkinManager {
       default_scale: 0.8,
       hitbox: { x: 10, y: 10, width: 70, height: 70 },
       animations: {
-        idle: { frames: ['skins/blue_bird/idle_01.png', 'skins/blue_bird/idle_02.png'], fps: 6, loop: true },
-        clicked: { frames: ['skins/blue_bird/clicked_01.png'], fps: 5, loop: false },
-        dragged: { frames: ['skins/blue_bird/dragged_01.png'], fps: 5, loop: true },
-        happy: { frames: ['skins/blue_bird/happy_01.png'], fps: 8, loop: false },
-        idle_action: { frames: ['skins/blue_bird/idle_01.png'], fps: 6, loop: false },
-        walk: { frames: ['skins/blue_bird/walk_01.png', 'skins/blue_bird/walk_02.png'], fps: 10, loop: false }
+        idle: { frames: [base+'skins/blue_bird/idle_01.png', base+'skins/blue_bird/idle_02.png'], fps: 6, loop: true },
+        clicked: { frames: [base+'skins/blue_bird/clicked_01.png'], fps: 5, loop: false },
+        dragged: { frames: [base+'skins/blue_bird/dragged_01.png'], fps: 5, loop: true },
+        happy: { frames: [base+'skins/blue_bird/happy_01.png'], fps: 8, loop: false },
+        idle_action: { frames: [base+'skins/blue_bird/idle_01.png'], fps: 6, loop: false },
+        walk: { frames: [base+'skins/blue_bird/walk_01.png', base+'skins/blue_bird/walk_02.png'], fps: 10, loop: false }
       }
     };
   }
@@ -1016,6 +1054,99 @@ class SkinManager {
 
   getCurrentSkinId() {
     try { return localStorage.getItem('web_pet_skin') || 'default_cat'; } catch { return 'default_cat'; }
+  }
+
+  /**
+   * 快速导入单张图片作为宠物（自动应用到所有状态）
+   */
+  importSingleImage(imageUrl, name = '自定义宠物') {
+    const skinId = 'custom_single_' + Date.now();
+    this.skins[skinId] = {
+      name: name,
+      version: '1.0',
+      author: 'user',
+      default_scale: 1.0,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {
+        idle: { frames: [imageUrl], fps: 1, loop: true },
+        clicked: { frames: [imageUrl], fps: 1, loop: false },
+        dragged: { frames: [imageUrl], fps: 1, loop: true },
+        happy: { frames: [imageUrl], fps: 1, loop: false },
+        idle_action: { frames: [imageUrl], fps: 1, loop: false },
+        walk: { frames: [imageUrl], fps: 1, loop: false }
+      }
+    };
+    // 保存图片到localStorage（小图）
+    try {
+      const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
+      customs[skinId] = { name, imageUrl };
+      localStorage.setItem('web_pet_custom_skins', JSON.stringify(customs));
+    } catch {}
+    return skinId;
+  }
+
+  /**
+   * 导入多帧动画（每个状态一张图）
+   */
+  importMultiFrame(imageMap, name = '自定义宠物') {
+    // imageMap: { idle: url, clicked: url, happy: url, ... }
+    const skinId = 'custom_multi_' + Date.now();
+    const animations = {};
+    for (const [state, url] of Object.entries(imageMap)) {
+      animations[state] = { frames: [url], fps: 1, loop: state === 'idle' || state === 'dragged' };
+    }
+    // 填充缺失状态
+    const defaultStates = ['idle', 'clicked', 'dragged', 'happy', 'idle_action', 'walk'];
+    const fallback = imageMap.idle || Object.values(imageMap)[0];
+    for (const s of defaultStates) {
+      if (!animations[s]) animations[s] = { frames: [fallback], fps: 1, loop: s === 'idle' || s === 'dragged' };
+    }
+    this.skins[skinId] = {
+      name, version: '1.0', author: 'user',
+      default_scale: 1.0,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations
+    };
+    return skinId;
+  }
+
+  /**
+   * 从localStorage加载用户自定义皮肤
+   */
+  loadCustomSkins() {
+    try {
+      const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
+      for (const [id, data] of Object.entries(customs)) {
+        if (!this.skins[id] && data.imageUrl) {
+          this.skins[id] = {
+            name: data.name || '自定义',
+            version: '1.0', author: 'user',
+            default_scale: 1.0,
+            hitbox: { x: 10, y: 10, width: 80, height: 80 },
+            animations: {
+              idle: { frames: [data.imageUrl], fps: 1, loop: true },
+              clicked: { frames: [data.imageUrl], fps: 1, loop: false },
+              dragged: { frames: [data.imageUrl], fps: 1, loop: true },
+              happy: { frames: [data.imageUrl], fps: 1, loop: false },
+              idle_action: { frames: [data.imageUrl], fps: 1, loop: false },
+              walk: { frames: [data.imageUrl], fps: 1, loop: false }
+            }
+          };
+        }
+      }
+    } catch {}
+  }
+
+  /**
+   * 删除自定义皮肤
+   */
+  removeCustomSkin(skinId) {
+    delete this.skins[skinId];
+    try {
+      const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
+      delete customs[skinId];
+      localStorage.setItem('web_pet_custom_skins', JSON.stringify(customs));
+    } catch {}
   }
 }
 /**
@@ -1393,7 +1524,13 @@ class SettingsPanel {
 
         <div class="sp-section">
           <div class="sp-title">🐾 皮肤</div>
-          <div id="sp-skin-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          <div id="sp-skin-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+          <div style="margin-top:8px">
+            <button class="sp-btn" id="sp-import-img" style="width:100%">📷 导入图片作为宠物</button>
+          </div>
+          <div style="margin-top:6px;font-size:11px;color:#999">
+            支持 PNG / JPG / GIF，建议 100x100 像素的透明背景图片
+          </div>
         </div>
 
         <div class="sp-section">
@@ -1458,10 +1595,26 @@ class SettingsPanel {
     skins.forEach(s => {
       const item = document.createElement('div');
       item.className = 'sp-skin-item' + (s.id === currentId ? ' active' : '');
-      item.textContent = s.name;
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.gap = '6px';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = s.name;
+      item.appendChild(nameSpan);
+      // 自定义皮肤显示删除按钮
+      if (s.id.startsWith('custom_')) {
+        const delBtn = document.createElement('span');
+        delBtn.textContent = '✕';
+        delBtn.style.cssText = 'font-size:10px;color:#ccc;cursor:pointer;margin-left:4px';
+        delBtn.onclick = (e) => { e.stopPropagation(); this.options.onSkinDelete?.(s.id); };
+        item.appendChild(delBtn);
+      }
       item.onclick = () => this.options.onSkinChange?.(s.id);
       skinList.appendChild(item);
     });
+
+    // 导入图片
+    $('sp-import-img').onclick = () => this.options.onImportImage?.();
 
     // 数据操作
     $('sp-export').onclick = () => this.options.onExport?.();
@@ -1582,7 +1735,10 @@ class WebPet {
 
     this.notepad = new NotepadTool();
 
-    // 9. 设置面板
+    // 9. 加载自定义皮肤
+    this.skinManager.loadCustomSkins();
+
+    // 10. 设置面板
     this.settings = new SettingsPanel({
       getConfig: () => this.options,
       getSkins: () => this.skinManager.getSkinList(),
@@ -1594,6 +1750,8 @@ class WebPet {
       onIdleIntervalChange: (v) => { this.options.idleInterval = v; this.stateMachine.setIdleInterval(v); this._saveConfig(); },
       onHourlyChange: (v) => { this.options.hourlyEnabled = v; this.hourly.setEnabled(v); this._saveConfig(); },
       onSkinChange: (id) => { this.options.skin = id; this.skinManager.applySkin(id); this._saveConfig(); this.settings._render(); },
+      onSkinDelete: (id) => { this.skinManager.removeCustomSkin(id); this.settings._render(); },
+      onImportImage: () => this._importImage(),
       onExport: () => this._exportData(),
       onImport: () => this._importData(),
       onReset: () => this._resetData()
@@ -1666,6 +1824,69 @@ class WebPet {
     if (pinned.length > 0) {
       setTimeout(() => this.bubble.show('📝 ' + pinned[0].text, 4000), 2000);
     }
+  }
+
+  _importImage() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    input.multiple = true; // 支持多选
+    input.onchange = (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      if (files.length === 1) {
+        // 单张图片 - 应用到所有状态
+        const file = files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const url = ev.target.result;
+          const skinId = this.skinManager.importSingleImage(url, file.name.replace(/\.\w+$/, ''));
+          this.options.skin = skinId;
+          this.skinManager.applySkin(skinId);
+          this._saveConfig();
+          this.bubble.show('🎨 已应用新皮肤！', 2000);
+          this.settings.hide();
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // 多张图片 - 按文件名匹配状态
+        const stateMap = {};
+        let loaded = 0;
+        files.forEach(file => {
+          const name = file.name.replace(/\.\w+$/, '').toLowerCase();
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            // 尝试从文件名匹配状态
+            let matchedState = null;
+            for (const state of ['idle', 'clicked', 'dragged', 'happy', 'walk', 'idle_action']) {
+              if (name.includes(state) || name.includes(state.replace('_', ''))) {
+                matchedState = state;
+                break;
+              }
+            }
+            if (!matchedState) {
+              // 用序号匹配: 1=idle, 2=clicked, 3=dragged, 4=happy
+              const idx = files.indexOf(file);
+              const states = ['idle', 'clicked', 'dragged', 'happy', 'walk', 'idle_action'];
+              matchedState = states[idx] || 'idle';
+            }
+            stateMap[matchedState] = ev.target.result;
+            loaded++;
+            if (loaded === files.length) {
+              const skinId = this.skinManager.importMultiFrame(stateMap, '自定义宠物');
+              this.options.skin = skinId;
+              this.skinManager.applySkin(skinId);
+              this._saveConfig();
+              this.bubble.show('🎨 已导入多帧皮肤！', 2000);
+              this.settings.hide();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    };
+    input.click();
   }
 
   _exportData() {

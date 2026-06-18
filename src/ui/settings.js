@@ -107,7 +107,13 @@ class SettingsPanel {
 
         <div class="sp-section">
           <div class="sp-title">🐾 皮肤</div>
-          <div id="sp-skin-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          <div id="sp-skin-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
+          <div style="margin-top:8px">
+            <button class="sp-btn" id="sp-import-img" style="width:100%">📷 导入图片作为宠物</button>
+          </div>
+          <div style="margin-top:6px;font-size:11px;color:#999">
+            支持 PNG / JPG / GIF，建议 100x100 像素的透明背景图片
+          </div>
         </div>
 
         <div class="sp-section">
@@ -172,10 +178,26 @@ class SettingsPanel {
     skins.forEach(s => {
       const item = document.createElement('div');
       item.className = 'sp-skin-item' + (s.id === currentId ? ' active' : '');
-      item.textContent = s.name;
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.gap = '6px';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = s.name;
+      item.appendChild(nameSpan);
+      // 自定义皮肤显示删除按钮
+      if (s.id.startsWith('custom_')) {
+        const delBtn = document.createElement('span');
+        delBtn.textContent = '✕';
+        delBtn.style.cssText = 'font-size:10px;color:#ccc;cursor:pointer;margin-left:4px';
+        delBtn.onclick = (e) => { e.stopPropagation(); this.options.onSkinDelete?.(s.id); };
+        item.appendChild(delBtn);
+      }
       item.onclick = () => this.options.onSkinChange?.(s.id);
       skinList.appendChild(item);
     });
+
+    // 导入图片
+    $('sp-import-img').onclick = () => this.options.onImportImage?.();
 
     // 数据操作
     $('sp-export').onclick = () => this.options.onExport?.();

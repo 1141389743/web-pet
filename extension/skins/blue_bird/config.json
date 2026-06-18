@@ -1,0 +1,59 @@
+{
+  "name": "\u84dd\u8272\u5c0f\u9e1f",
+  "version": "1.0",
+  "author": "system",
+  "default_scale": 0.8,
+  "hitbox": {
+    "x": 10,
+    "y": 10,
+    "width": 80,
+    "height": 80
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle_01.png",
+        "idle_02.png"
+      ],
+      "fps": 8,
+      "loop": true
+    },
+    "clicked": {
+      "frames": [
+        "clicked_01.png"
+      ],
+      "fps": 5,
+      "loop": false
+    },
+    "dragged": {
+      "frames": [
+        "dragged_01.png"
+      ],
+      "fps": 5,
+      "loop": true
+    },
+    "happy": {
+      "frames": [
+        "happy_01.png"
+      ],
+      "fps": 8,
+      "loop": false
+    },
+    "idle_action": {
+      "frames": [
+        "idle_01.png",
+        "idle_02.png"
+      ],
+      "fps": 6,
+      "loop": false
+    },
+    "walk": {
+      "frames": [
+        "walk_01.png",
+        "walk_02.png"
+      ],
+      "fps": 10,
+      "loop": false
+    }
+  }
+}

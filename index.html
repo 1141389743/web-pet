@@ -121,11 +121,11 @@ body {
 <script src="src/ui/settings.js"></script>
 <script src="src/app.js"></script>
 <script>
-  // 启动宠物
+  // 启动宠物（默认用emoji显示，可通过设置导入自定义图片）
   const pet = new WebPet({ skin: 'default_cat', size: 120 });
 
   // 3秒后打招呼
-  setTimeout(() => pet.say('你好呀~ 点我试试！'), 2000);
+  setTimeout(() => pet.say('你好呀~ 点我试试！\n右键我呼出菜单 → 设置 → 导入图片'), 3000);
 </script>
 </body>
 </html>

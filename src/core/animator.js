@@ -13,6 +13,17 @@ class PetAnimator {
       backgroundRepeat: 'no-repeat',
       imageRendering: 'auto'
     });
+    // 默认CSS宠物（无图片时显示）
+    this._defaultPet = document.createElement('div');
+    Object.assign(this._defaultPet.style, {
+      width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '64px', lineHeight: '1', userSelect: 'none',
+      position: 'absolute', top: '0', left: '0'
+    });
+    this._defaultPet.textContent = '🐱';
+    this.el.appendChild(this._defaultPet);
+    this._hasCustomImage = false;
     container.el.appendChild(this.el);
 
     this.frames = [];
@@ -128,11 +139,29 @@ class PetAnimator {
   _showFrame(index) {
     const img = this._imgCache[index];
     if (img) {
+      this._hasCustomImage = true;
+      this._defaultPet.style.display = 'none';
       this.el.style.backgroundImage = `url(${img.src})`;
       this.el.style.backgroundSize = 'contain';
       this.el.style.backgroundPosition = 'center';
       this.el.style.backgroundRepeat = 'no-repeat';
     }
+  }
+
+  /**
+   * 设置默认emoji宠物
+   */
+  setDefaultEmoji(emoji) {
+    this._defaultPet.textContent = emoji || '🐱';
+  }
+
+  /**
+   * 显示默认宠物（无自定义图片时）
+   */
+  showDefault() {
+    this._hasCustomImage = false;
+    this._defaultPet.style.display = 'flex';
+    this.el.style.backgroundImage = 'none';
   }
 
   /**

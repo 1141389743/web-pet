@@ -104,7 +104,10 @@ class WebPet {
 
     this.notepad = new NotepadTool();
 
-    // 9. 设置面板
+    // 9. 加载自定义皮肤
+    this.skinManager.loadCustomSkins();
+
+    // 10. 设置面板
     this.settings = new SettingsPanel({
       getConfig: () => this.options,
       getSkins: () => this.skinManager.getSkinList(),
@@ -116,6 +119,8 @@ class WebPet {
       onIdleIntervalChange: (v) => { this.options.idleInterval = v; this.stateMachine.setIdleInterval(v); this._saveConfig(); },
       onHourlyChange: (v) => { this.options.hourlyEnabled = v; this.hourly.setEnabled(v); this._saveConfig(); },
       onSkinChange: (id) => { this.options.skin = id; this.skinManager.applySkin(id); this._saveConfig(); this.settings._render(); },
+      onSkinDelete: (id) => { this.skinManager.removeCustomSkin(id); this.settings._render(); },
+      onImportImage: () => this._importImage(),
       onExport: () => this._exportData(),
       onImport: () => this._importData(),
       onReset: () => this._resetData()
@@ -188,6 +193,69 @@ class WebPet {
     if (pinned.length > 0) {
       setTimeout(() => this.bubble.show('📝 ' + pinned[0].text, 4000), 2000);
     }
+  }
+
+  _importImage() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    input.multiple = true; // 支持多选
+    input.onchange = (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      if (files.length === 1) {
+        // 单张图片 - 应用到所有状态
+        const file = files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const url = ev.target.result;
+          const skinId = this.skinManager.importSingleImage(url, file.name.replace(/\.\w+$/, ''));
+          this.options.skin = skinId;
+          this.skinManager.applySkin(skinId);
+          this._saveConfig();
+          this.bubble.show('🎨 已应用新皮肤！', 2000);
+          this.settings.hide();
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // 多张图片 - 按文件名匹配状态
+        const stateMap = {};
+        let loaded = 0;
+        files.forEach(file => {
+          const name = file.name.replace(/\.\w+$/, '').toLowerCase();
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            // 尝试从文件名匹配状态
+            let matchedState = null;
+            for (const state of ['idle', 'clicked', 'dragged', 'happy', 'walk', 'idle_action']) {
+              if (name.includes(state) || name.includes(state.replace('_', ''))) {
+                matchedState = state;
+                break;
+              }
+            }
+            if (!matchedState) {
+              // 用序号匹配: 1=idle, 2=clicked, 3=dragged, 4=happy
+              const idx = files.indexOf(file);
+              const states = ['idle', 'clicked', 'dragged', 'happy', 'walk', 'idle_action'];
+              matchedState = states[idx] || 'idle';
+            }
+            stateMap[matchedState] = ev.target.result;
+            loaded++;
+            if (loaded === files.length) {
+              const skinId = this.skinManager.importMultiFrame(stateMap, '自定义宠物');
+              this.options.skin = skinId;
+              this.skinManager.applySkin(skinId);
+              this._saveConfig();
+              this.bubble.show('🎨 已导入多帧皮肤！', 2000);
+              this.settings.hide();
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+    };
+    input.click();
   }
 
   _exportData() {
