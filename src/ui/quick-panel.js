@@ -80,6 +80,7 @@ class QuickPanel {
         <div style="display:flex;border-bottom:1px solid #f0f0f0">
           <div class="qp-tab active" data-tab="timer" style="flex:1;padding:10px;text-align:center;cursor:pointer;font-size:13px;border-bottom:2px solid #FF6B81;color:#FF6B81;font-weight:600">⏰ 提醒</div>
           <div class="qp-tab" data-tab="notes" style="flex:1;padding:10px;text-align:center;cursor:pointer;font-size:13px;color:#999">📝 便签</div>
+          <div class="qp-tab" data-tab="skin" style="flex:1;padding:10px;text-align:center;cursor:pointer;font-size:13px;color:#999">🎨 皮肤</div>
         </div>
       </div>
 
@@ -143,6 +144,34 @@ class QuickPanel {
             </div>
           `).join('')}
       </div>
+
+      <div id="qp-tab-skin" style="padding:14px;max-height:320px;overflow-y:auto;display:none">
+        <div style="margin-bottom:10px">
+          <button id="qp-import-img" style="width:100%;padding:12px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600">📷 导入图片作为宠物</button>
+          <div style="font-size:11px;color:#999;margin-top:6px;text-align:center">支持 PNG / JPG / GIF，建议透明背景</div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:8px">切换默认形象</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          ${this.options.getSkins?.().map(s => `
+            <div class="qp-skin-item" data-id="${s.id}" style="text-align:center;padding:10px 6px;border:2px solid ${s.id === this.options.getCurrentSkinId?.() ? '#FF6B81' : '#eee'};border-radius:10px;cursor:pointer;background:${s.id === this.options.getCurrentSkinId?.() ? '#FFE8E8' : '#fff'}">
+              <div style="font-size:28px">${s.name.match(/^[^\s]+/)?.[0] || '🐾'}</div>
+              <div style="font-size:11px;margin-top:4px;color:#666">${s.name.replace(/^[^\s]+\s*/, '')}</div>
+            </div>
+          `).join('') || ''}
+        </div>
+        ${this.options.getCustomSkins?.().length > 0 ? `
+          <div style="font-size:12px;color:#666;margin:12px 0 8px">自定义皮肤</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            ${this.options.getCustomSkins?.().map(s => `
+              <div class="qp-skin-item" data-id="${s.id}" style="text-align:center;padding:10px 6px;border:2px solid #eee;border-radius:10px;cursor:pointer;position:relative">
+                <div style="font-size:28px">🖼️</div>
+                <div style="font-size:11px;margin-top:4px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
+                <span class="qp-skin-del" data-id="${s.id}" style="position:absolute;top:4px;right:6px;font-size:10px;color:#ccc;cursor:pointer">✕</span>
+              </div>
+            `).join('') || ''}
+          </div>
+        ` : ''}
+      </div>
     `;
 
     this._bindEvents();
@@ -169,6 +198,28 @@ class QuickPanel {
         tab.classList.add('active');
         $('qp-tab-timer').style.display = tab.dataset.tab === 'timer' ? 'block' : 'none';
         $('qp-tab-notes').style.display = tab.dataset.tab === 'notes' ? 'block' : 'none';
+        $('qp-tab-skin').style.display = tab.dataset.tab === 'skin' ? 'block' : 'none';
+      };
+    });
+
+    // 导入图片
+    const importBtn = $('qp-import-img');
+    if (importBtn) importBtn.onclick = () => { this.options.onImportImage?.(); this.hide(); };
+
+    // 切换皮肤
+    this.el.querySelectorAll('.qp-skin-item').forEach(item => {
+      item.onclick = () => {
+        this.options.onSkinChange?.(item.dataset.id);
+        this.hide();
+      };
+    });
+
+    // 删除自定义皮肤
+    this.el.querySelectorAll('.qp-skin-del').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        this.options.onSkinDelete?.(btn.dataset.id);
+        this._render();
       };
     });
 

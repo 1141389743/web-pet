@@ -76,6 +76,9 @@ class WebPet {
     this.quickPanel = new QuickPanel({
       getReminders: () => this.reminder.getAll(),
       getNotes: () => this.notepad.getAll(),
+      getSkins: () => this.skinManager.getSkinList().filter(s => !s.id.startsWith('custom_')),
+      getCustomSkins: () => this.skinManager.getSkinList().filter(s => s.id.startsWith('custom_')),
+      getCurrentSkinId: () => this.options.skin,
       onAddReminder: (content, triggerAt, minutes) => {
         this.reminder.add(content, triggerAt);
         this.bubble.show('⏰ ' + minutes + '分钟后提醒', 2000);
@@ -90,7 +93,18 @@ class WebPet {
       },
       onToggleNote: (id) => this.notepad.toggleDone(id),
       onPinNote: (id) => this.notepad.togglePin(id),
-      onDeleteNote: (id) => this.notepad.remove(id)
+      onDeleteNote: (id) => this.notepad.remove(id),
+      onImportImage: () => this._importImage(),
+      onSkinChange: (id) => {
+        this.options.skin = id;
+        this.skinManager.applySkin(id);
+        this._saveConfig();
+        this.bubble.show('🎨 已切换皮肤', 1500);
+      },
+      onSkinDelete: (id) => {
+        this.skinManager.removeCustomSkin(id);
+        this.bubble.show('已删除皮肤', 1500);
+      }
     });
 
     // 7. 鼠标交互

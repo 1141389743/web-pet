@@ -551,15 +551,20 @@ class PetStateMachine {
 }
 /**
  * 鼠标交互 - 点击、悬停、拖拽、右键菜单
+ * 修复：移动超过5px才算拖拽，否则算点击
  */
 class MouseHandler {
   constructor(container, stateMachine) {
     this.container = container;
     this.stateMachine = stateMachine;
     this._hoverTimer = null;
-    this._clickCount = 0;
     this._clickTimer = null;
     this._lastClickTime = 0;
+    this._mouseDownPos = null;
+    this._hasMoved = false;
+
+    this._onMouseMove = this._handleMouseMove.bind(this);
+    this._onMouseUp = this._handleMouseUp.bind(this);
 
     this._bindEvents();
   }
@@ -567,37 +572,57 @@ class MouseHandler {
   _bindEvents() {
     const el = this.container.el;
 
-    // mousedown - 拖拽开始
+    // mousedown - 记录位置，准备拖拽
     el.addEventListener('mousedown', (e) => {
-      if (e.button === 0) { // 左键
-        this.container.startDrag(e);
-        this.stateMachine.changeState('dragged');
+      if (e.button === 0) {
+        this._mouseDownPos = { x: e.clientX, y: e.clientY };
+        this._hasMoved = false;
+
+        // 开始监听移动和释放
+        document.addEventListener('mousemove', this._onMouseMove);
+        document.addEventListener('mouseup', this._onMouseUp);
       }
     });
 
-    // touchstart - 移动端拖拽
+    // touchstart
     el.addEventListener('touchstart', (e) => {
-      this.container.startDrag(e.touches[0]);
-      this.stateMachine.changeState('dragged');
+      const touch = e.touches[0];
+      this._mouseDownPos = { x: touch.clientX, y: touch.clientY };
+      this._hasMoved = false;
+
+      const onTouchMove = (ev) => {
+        const t = ev.touches[0];
+        const dx = Math.abs(t.clientX - this._mouseDownPos.x);
+        const dy = Math.abs(t.clientY - this._mouseDownPos.y);
+        if (dx > 5 || dy > 5) {
+          this._hasMoved = true;
+          if (!this.container.isDragging) {
+            this.container.startDrag(touch);
+            this.stateMachine.changeState('dragged');
+          }
+        }
+        if (this.container.isDragging) {
+          this.container._handleMove(ev);
+        }
+      };
+
+      const onTouchEnd = () => {
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+        if (this.container.isDragging) {
+          this.container._handleUp({});
+          this.stateMachine.changeState('idle');
+        } else if (this._mouseDownPos) {
+          // 算点击
+          this.stateMachine.changeState('clicked');
+          if (this.onClick) this.onClick();
+        }
+        this._mouseDownPos = null;
+      };
+
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
     }, { passive: true });
-
-    // click - 区分单击/双击
-    el.addEventListener('click', (e) => {
-      if (this.container.isDragging) return;
-      const now = Date.now();
-      if (now - this._lastClickTime < 300) {
-        this._handleDoubleClick(e);
-        this._clickTimer && clearTimeout(this._clickTimer);
-      } else {
-        this._clickTimer = setTimeout(() => this._handleClick(e), 300);
-      }
-      this._lastClickTime = now;
-    });
-
-    // 拖拽结束回调
-    this.container.onDragEnd = () => {
-      this.stateMachine.changeState('idle');
-    };
 
     // 悬停
     el.addEventListener('mouseenter', () => {
@@ -605,7 +630,6 @@ class MouseHandler {
         this.stateMachine.changeState('happy');
         if (this.onHover) this.onHover();
       }, 1000);
-      // 吸附状态鼠标靠近弹出
       if (this.container.isSnapped) {
         const rect = el.getBoundingClientRect();
         const targetX = this.container.snapSide === 'left' ? 0 : window.innerWidth - this.container.size * this.container.scale;
@@ -615,7 +639,6 @@ class MouseHandler {
 
     el.addEventListener('mouseleave', () => {
       clearTimeout(this._hoverTimer);
-      // 吸附状态鼠标离开收回
       if (this.container.isSnapped) {
         if (this.container.snapSide === 'left') {
           this.container.setPosition(-this.container.size * this.container.scale * 0.6, this.container.position.y);
@@ -633,6 +656,51 @@ class MouseHandler {
     });
   }
 
+  _handleMouseMove(e) {
+    if (!this._mouseDownPos) return;
+    const dx = Math.abs(e.clientX - this._mouseDownPos.x);
+    const dy = Math.abs(e.clientY - this._mouseDownPos.y);
+
+    // 移动超过5px才算拖拽
+    if (dx > 5 || dy > 5) {
+      this._hasMoved = true;
+      if (!this.container.isDragging) {
+        this.container.startDrag({
+          clientX: this._mouseDownPos.x,
+          clientY: this._mouseDownPos.y
+        });
+        this.stateMachine.changeState('dragged');
+      }
+      this.container._handleMove(e);
+    }
+  }
+
+  _handleMouseUp(e) {
+    document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('mouseup', this._onMouseUp);
+
+    if (this.container.isDragging) {
+      // 结束拖拽
+      this.container._handleUp(e);
+      this.stateMachine.changeState('idle');
+    } else if (this._mouseDownPos && !this._hasMoved) {
+      // 没移动 = 点击
+      const now = Date.now();
+      if (now - this._lastClickTime < 350) {
+        // 双击
+        clearTimeout(this._clickTimer);
+        this._handleDoubleClick(e);
+      } else {
+        // 单击（延迟350ms确认不是双击）
+        this._clickTimer = setTimeout(() => this._handleClick(e), 350);
+      }
+      this._lastClickTime = now;
+    }
+
+    this._mouseDownPos = null;
+    this._hasMoved = false;
+  }
+
   _handleClick(e) {
     this.stateMachine.changeState('clicked');
     if (this.onClick) this.onClick(e);
@@ -645,6 +713,8 @@ class MouseHandler {
   destroy() {
     clearTimeout(this._hoverTimer);
     clearTimeout(this._clickTimer);
+    document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('mouseup', this._onMouseUp);
   }
 }
 /**
@@ -1569,6 +1639,7 @@ class QuickPanel {
         <div style="display:flex;border-bottom:1px solid #f0f0f0">
           <div class="qp-tab active" data-tab="timer" style="flex:1;padding:10px;text-align:center;cursor:pointer;font-size:13px;border-bottom:2px solid #FF6B81;color:#FF6B81;font-weight:600">⏰ 提醒</div>
           <div class="qp-tab" data-tab="notes" style="flex:1;padding:10px;text-align:center;cursor:pointer;font-size:13px;color:#999">📝 便签</div>
+          <div class="qp-tab" data-tab="skin" style="flex:1;padding:10px;text-align:center;cursor:pointer;font-size:13px;color:#999">🎨 皮肤</div>
         </div>
       </div>
 
@@ -1632,6 +1703,34 @@ class QuickPanel {
             </div>
           `).join('')}
       </div>
+
+      <div id="qp-tab-skin" style="padding:14px;max-height:320px;overflow-y:auto;display:none">
+        <div style="margin-bottom:10px">
+          <button id="qp-import-img" style="width:100%;padding:12px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600">📷 导入图片作为宠物</button>
+          <div style="font-size:11px;color:#999;margin-top:6px;text-align:center">支持 PNG / JPG / GIF，建议透明背景</div>
+        </div>
+        <div style="font-size:12px;color:#666;margin-bottom:8px">切换默认形象</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          ${this.options.getSkins?.().map(s => `
+            <div class="qp-skin-item" data-id="${s.id}" style="text-align:center;padding:10px 6px;border:2px solid ${s.id === this.options.getCurrentSkinId?.() ? '#FF6B81' : '#eee'};border-radius:10px;cursor:pointer;background:${s.id === this.options.getCurrentSkinId?.() ? '#FFE8E8' : '#fff'}">
+              <div style="font-size:28px">${s.name.match(/^[^\s]+/)?.[0] || '🐾'}</div>
+              <div style="font-size:11px;margin-top:4px;color:#666">${s.name.replace(/^[^\s]+\s*/, '')}</div>
+            </div>
+          `).join('') || ''}
+        </div>
+        ${this.options.getCustomSkins?.().length > 0 ? `
+          <div style="font-size:12px;color:#666;margin:12px 0 8px">自定义皮肤</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            ${this.options.getCustomSkins?.().map(s => `
+              <div class="qp-skin-item" data-id="${s.id}" style="text-align:center;padding:10px 6px;border:2px solid #eee;border-radius:10px;cursor:pointer;position:relative">
+                <div style="font-size:28px">🖼️</div>
+                <div style="font-size:11px;margin-top:4px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
+                <span class="qp-skin-del" data-id="${s.id}" style="position:absolute;top:4px;right:6px;font-size:10px;color:#ccc;cursor:pointer">✕</span>
+              </div>
+            `).join('') || ''}
+          </div>
+        ` : ''}
+      </div>
     `;
 
     this._bindEvents();
@@ -1658,6 +1757,28 @@ class QuickPanel {
         tab.classList.add('active');
         $('qp-tab-timer').style.display = tab.dataset.tab === 'timer' ? 'block' : 'none';
         $('qp-tab-notes').style.display = tab.dataset.tab === 'notes' ? 'block' : 'none';
+        $('qp-tab-skin').style.display = tab.dataset.tab === 'skin' ? 'block' : 'none';
+      };
+    });
+
+    // 导入图片
+    const importBtn = $('qp-import-img');
+    if (importBtn) importBtn.onclick = () => { this.options.onImportImage?.(); this.hide(); };
+
+    // 切换皮肤
+    this.el.querySelectorAll('.qp-skin-item').forEach(item => {
+      item.onclick = () => {
+        this.options.onSkinChange?.(item.dataset.id);
+        this.hide();
+      };
+    });
+
+    // 删除自定义皮肤
+    this.el.querySelectorAll('.qp-skin-del').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        this.options.onSkinDelete?.(btn.dataset.id);
+        this._render();
       };
     });
 
@@ -2028,6 +2149,9 @@ class WebPet {
     this.quickPanel = new QuickPanel({
       getReminders: () => this.reminder.getAll(),
       getNotes: () => this.notepad.getAll(),
+      getSkins: () => this.skinManager.getSkinList().filter(s => !s.id.startsWith('custom_')),
+      getCustomSkins: () => this.skinManager.getSkinList().filter(s => s.id.startsWith('custom_')),
+      getCurrentSkinId: () => this.options.skin,
       onAddReminder: (content, triggerAt, minutes) => {
         this.reminder.add(content, triggerAt);
         this.bubble.show('⏰ ' + minutes + '分钟后提醒', 2000);
@@ -2042,7 +2166,18 @@ class WebPet {
       },
       onToggleNote: (id) => this.notepad.toggleDone(id),
       onPinNote: (id) => this.notepad.togglePin(id),
-      onDeleteNote: (id) => this.notepad.remove(id)
+      onDeleteNote: (id) => this.notepad.remove(id),
+      onImportImage: () => this._importImage(),
+      onSkinChange: (id) => {
+        this.options.skin = id;
+        this.skinManager.applySkin(id);
+        this._saveConfig();
+        this.bubble.show('🎨 已切换皮肤', 1500);
+      },
+      onSkinDelete: (id) => {
+        this.skinManager.removeCustomSkin(id);
+        this.bubble.show('已删除皮肤', 1500);
+      }
     });
 
     // 7. 鼠标交互
