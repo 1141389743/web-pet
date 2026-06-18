@@ -139,6 +139,9 @@ web-pet/
 │   │   ├── reminder.js     # 定时提醒
 │   │   ├── hourly.js       # 整点报时
 │   │   └── notepad.js      # 便签
+│   ├── chat/
+│   │   ├── chat-engine.js    # AI 聊天引擎
+│   │   └── chat-panel.js     # 聊天面板
 │   ├── ui/
 │   │   ├── settings.js     # 设置面板
 │   │   ├── quick-panel.js  # 控制台

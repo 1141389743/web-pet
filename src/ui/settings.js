@@ -136,6 +136,32 @@ class SettingsPanel {
         </div>
 
         <div class="sp-section">
+          <div class="sp-title">💬 AI 聊天</div>
+          <div style="font-size:12px;color:#666;margin-bottom:8px">接入 OpenAI 兼容 API，让宠物能和你对话</div>
+          <div class="sp-row">
+            <span>API 地址</span>
+            <input type="text" id="sp-ai-endpoint" placeholder="https://api.openai.com/v1" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+          </div>
+          <div class="sp-row">
+            <span>API Key</span>
+            <input type="password" id="sp-ai-key" placeholder="sk-..." style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+          </div>
+          <div class="sp-row">
+            <span>模型</span>
+            <input type="text" id="sp-ai-model" placeholder="gpt-3.5-turbo" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+          </div>
+          <div class="sp-row">
+            <span>人设提示词</span>
+          </div>
+          <textarea id="sp-ai-prompt" rows="3" style="width:100%;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none;resize:vertical;font-family:inherit"></textarea>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <button class="sp-btn" id="sp-ai-save" style="background:#FF6B81;color:#fff;border-color:#FF6B81">保存配置</button>
+            <button class="sp-btn" id="sp-ai-test">测试连接</button>
+          </div>
+          <div id="sp-ai-status" style="font-size:11px;margin-top:6px;color:#999"></div>
+        </div>
+
+        <div class="sp-section">
           <div class="sp-title">💾 数据</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="sp-btn" id="sp-export">导出配置</button>
@@ -228,6 +254,41 @@ class SettingsPanel {
     $('sp-import').onclick = () => this.options.onImport?.();
     $('sp-reset').onclick = () => {
       if (confirm('确定要重置所有数据吗？')) this.options.onReset?.();
+    };
+
+    // AI 聊天配置
+    const chatCfg = this.options.getChatConfig?.() || {};
+    const epInput = $('sp-ai-endpoint');
+    const keyInput = $('sp-ai-key');
+    const modelInput = $('sp-ai-model');
+    const promptInput = $('sp-ai-prompt');
+    if (epInput) epInput.value = chatCfg.endpoint || '';
+    if (keyInput) keyInput.value = chatCfg.apiKey || '';
+    if (modelInput) modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
+    if (promptInput) promptInput.value = chatCfg.systemPrompt || '';
+
+    const saveBtn = $('sp-ai-save');
+    if (saveBtn) saveBtn.onclick = () => {
+      this.options.onSaveChatConfig?.({
+        endpoint: epInput?.value.trim(),
+        apiKey: keyInput?.value.trim(),
+        model: modelInput?.value.trim() || 'gpt-3.5-turbo',
+        systemPrompt: promptInput?.value.trim()
+      });
+      const status = $('sp-ai-status');
+      if (status) { status.textContent = '✅ 已保存'; status.style.color = '#52C41A'; }
+    };
+
+    const testBtn = $('sp-ai-test');
+    if (testBtn) testBtn.onclick = async () => {
+      const status = $('sp-ai-status');
+      if (status) { status.textContent = '⏳ 测试中...'; status.style.color = '#999'; }
+      try {
+        await this.options.onTestChat?.();
+        if (status) { status.textContent = '✅ 连接成功'; status.style.color = '#52C41A'; }
+      } catch (e) {
+        if (status) { status.textContent = '❌ ' + e.message; status.style.color = '#FF4D4F'; }
+      }
     };
   }
 

@@ -2044,6 +2044,32 @@ class SettingsPanel {
         </div>
 
         <div class="sp-section">
+          <div class="sp-title">💬 AI 聊天</div>
+          <div style="font-size:12px;color:#666;margin-bottom:8px">接入 OpenAI 兼容 API，让宠物能和你对话</div>
+          <div class="sp-row">
+            <span>API 地址</span>
+            <input type="text" id="sp-ai-endpoint" placeholder="https://api.openai.com/v1" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+          </div>
+          <div class="sp-row">
+            <span>API Key</span>
+            <input type="password" id="sp-ai-key" placeholder="sk-..." style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+          </div>
+          <div class="sp-row">
+            <span>模型</span>
+            <input type="text" id="sp-ai-model" placeholder="gpt-3.5-turbo" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+          </div>
+          <div class="sp-row">
+            <span>人设提示词</span>
+          </div>
+          <textarea id="sp-ai-prompt" rows="3" style="width:100%;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none;resize:vertical;font-family:inherit"></textarea>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <button class="sp-btn" id="sp-ai-save" style="background:#FF6B81;color:#fff;border-color:#FF6B81">保存配置</button>
+            <button class="sp-btn" id="sp-ai-test">测试连接</button>
+          </div>
+          <div id="sp-ai-status" style="font-size:11px;margin-top:6px;color:#999"></div>
+        </div>
+
+        <div class="sp-section">
           <div class="sp-title">💾 数据</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="sp-btn" id="sp-export">导出配置</button>
@@ -2136,6 +2162,41 @@ class SettingsPanel {
     $('sp-import').onclick = () => this.options.onImport?.();
     $('sp-reset').onclick = () => {
       if (confirm('确定要重置所有数据吗？')) this.options.onReset?.();
+    };
+
+    // AI 聊天配置
+    const chatCfg = this.options.getChatConfig?.() || {};
+    const epInput = $('sp-ai-endpoint');
+    const keyInput = $('sp-ai-key');
+    const modelInput = $('sp-ai-model');
+    const promptInput = $('sp-ai-prompt');
+    if (epInput) epInput.value = chatCfg.endpoint || '';
+    if (keyInput) keyInput.value = chatCfg.apiKey || '';
+    if (modelInput) modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
+    if (promptInput) promptInput.value = chatCfg.systemPrompt || '';
+
+    const saveBtn = $('sp-ai-save');
+    if (saveBtn) saveBtn.onclick = () => {
+      this.options.onSaveChatConfig?.({
+        endpoint: epInput?.value.trim(),
+        apiKey: keyInput?.value.trim(),
+        model: modelInput?.value.trim() || 'gpt-3.5-turbo',
+        systemPrompt: promptInput?.value.trim()
+      });
+      const status = $('sp-ai-status');
+      if (status) { status.textContent = '✅ 已保存'; status.style.color = '#52C41A'; }
+    };
+
+    const testBtn = $('sp-ai-test');
+    if (testBtn) testBtn.onclick = async () => {
+      const status = $('sp-ai-status');
+      if (status) { status.textContent = '⏳ 测试中...'; status.style.color = '#999'; }
+      try {
+        await this.options.onTestChat?.();
+        if (status) { status.textContent = '✅ 连接成功'; status.style.color = '#52C41A'; }
+      } catch (e) {
+        if (status) { status.textContent = '❌ ' + e.message; status.style.color = '#FF4D4F'; }
+      }
     };
   }
 
@@ -3018,6 +3079,367 @@ class MiniGames {
   }
 }
 /**
+ * 聊天引擎 - 接入 OpenAI 兼容 API
+ * 支持自定义 endpoint、key、model
+ */
+class ChatEngine {
+  constructor() {
+    this.endpoint = '';
+    this.apiKey = '';
+    this.model = 'gpt-3.5-turbo';
+    this.systemPrompt = '你是一只可爱的桌面宠物猫猫，名叫小爪。说话简短有趣，喜欢用emoji，语气俏皮温暖。每次回复控制在100字以内。';
+    this.history = []; // 对话历史
+    this.maxHistory = 20; // 保留最近N轮
+    this._ready = false;
+    this._load();
+  }
+
+  async _load() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const data = await chrome.storage.local.get('web_pet_chat_config');
+        const cfg = data.web_pet_chat_config || {};
+        this.endpoint = cfg.endpoint || '';
+        this.apiKey = cfg.apiKey || '';
+        this.model = cfg.model || 'gpt-3.5-turbo';
+        this.systemPrompt = cfg.systemPrompt || this.systemPrompt;
+      } else {
+        const raw = localStorage.getItem('web_pet_chat_config');
+        if (raw) {
+          const cfg = JSON.parse(raw);
+          this.endpoint = cfg.endpoint || '';
+          this.apiKey = cfg.apiKey || '';
+          this.model = cfg.model || 'gpt-3.5-turbo';
+          this.systemPrompt = cfg.systemPrompt || this.systemPrompt;
+        }
+      }
+    } catch {}
+    this._ready = true;
+  }
+
+  _save() {
+    const cfg = {
+      endpoint: this.endpoint,
+      apiKey: this.apiKey,
+      model: this.model,
+      systemPrompt: this.systemPrompt
+    };
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ web_pet_chat_config: cfg });
+      } else {
+        localStorage.setItem('web_pet_chat_config', JSON.stringify(cfg));
+      }
+    } catch {}
+  }
+
+  /**
+   * 更新配置
+   */
+  configure({ endpoint, apiKey, model, systemPrompt }) {
+    if (endpoint !== undefined) this.endpoint = endpoint;
+    if (apiKey !== undefined) this.apiKey = apiKey;
+    if (model !== undefined) this.model = model;
+    if (systemPrompt !== undefined) this.systemPrompt = systemPrompt;
+    this._save();
+  }
+
+  /**
+   * 是否已配置
+   */
+  isConfigured() {
+    return !!(this.endpoint && this.apiKey);
+  }
+
+  /**
+   * 发送消息并获取回复
+   * @param {string} userMessage
+   * @returns {Promise<string>} AI回复
+   */
+  async chat(userMessage) {
+    if (!this.isConfigured()) {
+      throw new Error('请先在设置中配置 AI 接口');
+    }
+
+    // 添加用户消息到历史
+    this.history.push({ role: 'user', content: userMessage });
+
+    // 截断历史
+    if (this.history.length > this.maxHistory * 2) {
+      this.history = this.history.slice(-this.maxHistory * 2);
+    }
+
+    // 构建请求
+    const messages = [
+      { role: 'system', content: this.systemPrompt },
+      ...this.history
+    ];
+
+    // 标准化 endpoint
+    let url = this.endpoint.replace(/\/+$/, '');
+    if (!url.endsWith('/chat/completions')) {
+      url += '/chat/completions';
+    }
+
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+          temperature: 0.8,
+          max_tokens: 300
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`API 错误 (${resp.status}): ${err.slice(0, 100)}`);
+      }
+
+      const data = await resp.json();
+      const reply = data.choices?.[0]?.message?.content?.trim() || '...';
+
+      // 添加助手回复到历史
+      this.history.push({ role: 'assistant', content: reply });
+
+      return reply;
+    } catch (e) {
+      // 移除失败的用户消息
+      this.history.pop();
+      throw e;
+    }
+  }
+
+  /**
+   * 清空对话历史
+   */
+  clearHistory() {
+    this.history = [];
+  }
+}
+/**
+ * 聊天面板 - 与宠物对话的浮动窗口
+ */
+class ChatPanel {
+  constructor(options = {}) {
+    this.el = null;
+    this.overlay = null;
+    this._visible = false;
+    this._loading = false;
+    this.options = options;
+    this._init();
+  }
+
+  _init() {
+    this.overlay = document.createElement('div');
+    Object.assign(this.overlay.style, {
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.15)', zIndex: '2147483646',
+      display: 'none'
+    });
+    this.overlay.addEventListener('click', () => this.hide());
+    document.body.appendChild(this.overlay);
+
+    this.el = document.createElement('div');
+    this.el.className = 'web-pet-chat-panel';
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      zIndex: '2147483647',
+      width: '360px',
+      maxWidth: '90vw',
+      height: '480px',
+      maxHeight: '80vh',
+      background: '#fff',
+      borderRadius: '16px',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+      fontSize: '13px',
+      color: '#333',
+      display: 'none',
+      overflow: 'hidden',
+      flexDirection: 'column'
+    });
+    document.body.appendChild(this.el);
+  }
+
+  show(x, y) {
+    this._visible = true;
+    this._render();
+    this.el.style.display = 'flex';
+    this.overlay.style.display = 'block';
+
+    // 定位
+    const pw = 360, ph = 480;
+    let px = x ? Math.min(x, window.innerWidth - pw - 10) : (window.innerWidth - pw) / 2;
+    let py = y ? y - ph - 20 : (window.innerHeight - ph) / 2;
+    if (py < 10) py = y ? y + 20 : 10;
+    if (px < 10) px = 10;
+    this.el.style.left = px + 'px';
+    this.el.style.top = py + 'px';
+
+    // 聚焦输入框
+    setTimeout(() => {
+      const input = this.el.querySelector('#cp-input');
+      if (input) input.focus();
+    }, 100);
+  }
+
+  hide() {
+    this._visible = false;
+    this.el.style.display = 'none';
+    this.overlay.style.display = 'none';
+  }
+
+  _render() {
+    const petName = this.options.getPetName?.() || '小爪';
+    const messages = this.options.getMessages?.() || [];
+    const isConfigured = this.options.isConfigured?.();
+
+    this.el.innerHTML = `
+      <div style="background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">💬</span>
+          <span style="font-size:15px;font-weight:600">和${petName}聊天</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="cursor:pointer;font-size:14px;opacity:0.8" id="cp-clear" title="清空对话">🗑️</span>
+          <span style="cursor:pointer;font-size:18px" id="cp-close">✕</span>
+        </div>
+      </div>
+
+      ${!isConfigured ? `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center">
+          <div style="font-size:40px;margin-bottom:12px">🔑</div>
+          <div style="font-size:14px;color:#666;margin-bottom:16px">请先配置 AI 接口才能聊天</div>
+          <button class="cp-btn" id="cp-goto-settings" style="padding:10px 24px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer">去设置</button>
+        </div>
+      ` : `
+        <div id="cp-messages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px">
+          ${messages.length === 0 ? `
+            <div style="text-align:center;color:#ccc;padding:40px 0">
+              <div style="font-size:32px;margin-bottom:8px">🐾</div>
+              <div>说点什么和${petName}聊聊吧~</div>
+            </div>
+          ` : messages.map(m => this._renderMsg(m, petName)).join('')}
+          ${this._loading ? `
+            <div style="display:flex;gap:6px;align-items:flex-start">
+              <span style="font-size:16px">🐱</span>
+              <div style="background:#f5f5f5;padding:8px 12px;border-radius:12px;border-top-left-radius:2px">
+                <span class="cp-typing">思考中<span class="cp-dots">...</span></span>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="padding:10px 14px;border-top:1px solid #f0f0f0;display:flex;gap:8px;flex-shrink:0;background:#fafafa">
+          <input type="text" id="cp-input" placeholder="说点什么..." style="flex:1;padding:10px 12px;border:1px solid #e0e0e0;border-radius:10px;font-size:13px;outline:none;background:#fff" />
+          <button id="cp-send" style="padding:10px 16px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;flex-shrink:0">发送</button>
+        </div>
+      `}
+    `;
+
+    this._bindEvents();
+    this._scrollBottom();
+    this._injectTypingStyle();
+  }
+
+  _renderMsg(msg, petName) {
+    const isUser = msg.role === 'user';
+    const avatar = isUser ? '👤' : '🐱';
+    const name = isUser ? '你' : petName;
+    const bg = isUser ? 'linear-gradient(135deg,#667eea,#764ba2)' : '#f5f5f5';
+    const color = isUser ? '#fff' : '#333';
+    const align = isUser ? 'flex-end' : 'flex-start';
+    const radius = isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px';
+
+    return `
+      <div style="display:flex;gap:6px;align-items:flex-start;justify-content:${align}">
+        ${!isUser ? `<span style="font-size:16px;flex-shrink:0">${avatar}</span>` : ''}
+        <div style="max-width:80%">
+          <div style="font-size:11px;color:#999;margin-bottom:3px;text-align:${isUser ? 'right' : 'left'}">${name}</div>
+          <div style="background:${bg};color:${color};padding:8px 12px;border-radius:${radius};white-space:pre-wrap;word-break:break-word;line-height:1.5">${this._esc(msg.content)}</div>
+        </div>
+        ${isUser ? `<span style="font-size:16px;flex-shrink:0">${avatar}</span>` : ''}
+      </div>
+    `;
+  }
+
+  _bindEvents() {
+    const $ = id => this.el.querySelector('#' + id);
+
+    $('cp-close').onclick = () => this.hide();
+
+    const clearBtn = $('cp-clear');
+    if (clearBtn) clearBtn.onclick = () => {
+      this.options.onClear?.();
+      this._render();
+    };
+
+    const gotoSettings = $('cp-goto-settings');
+    if (gotoSettings) gotoSettings.onclick = () => {
+      this.hide();
+      this.options.onOpenSettings?.();
+    };
+
+    const input = $('cp-input');
+    const sendBtn = $('cp-send');
+    if (!input || !sendBtn) return;
+
+    const doSend = () => {
+      const text = input.value.trim();
+      if (!text || this._loading) return;
+      input.value = '';
+      this.options.onSend?.(text);
+    };
+
+    sendBtn.onclick = doSend;
+    input.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); } };
+  }
+
+  _scrollBottom() {
+    const box = this.el.querySelector('#cp-messages');
+    if (box) setTimeout(() => box.scrollTop = box.scrollHeight, 50);
+  }
+
+  setLoading(v) {
+    this._loading = v;
+    if (this._visible) this._render();
+  }
+
+  refresh() {
+    if (this._visible) this._render();
+  }
+
+  _esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  _injectTypingStyle() {
+    if (document.getElementById('cp-typing-style')) return;
+    const s = document.createElement('style');
+    s.id = 'cp-typing-style';
+    s.textContent = `
+      @keyframes cp-blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+      .cp-dots span:nth-child(1) { animation: cp-blink 1.4s 0s infinite; }
+      .cp-dots span:nth-child(2) { animation: cp-blink 1.4s 0.2s infinite; }
+      .cp-dots span:nth-child(3) { animation: cp-blink 1.4s 0.4s infinite; }
+    `;
+    document.head.appendChild(s);
+  }
+
+  destroy() {
+    this.el?.remove();
+    this.overlay?.remove();
+  }
+}
+/**
  * 天气模块 - 获取天气并渲染宠物天气特效
  * 使用 wttr.in 免费API，无需key
  */
@@ -3750,7 +4172,18 @@ class WebPet {
       onImportImage: () => this._importImage(),
       onExport: () => this._exportData(),
       onImport: () => this._importData(),
-      onReset: () => this._resetData()
+      onReset: () => this._resetData(),
+      getChatConfig: () => ({
+        endpoint: this.chatEngine.endpoint,
+        apiKey: this.chatEngine.apiKey,
+        model: this.chatEngine.model,
+        systemPrompt: this.chatEngine.systemPrompt
+      }),
+      onSaveChatConfig: (cfg) => this.chatEngine.configure(cfg),
+      onTestChat: async () => {
+        if (!this.chatEngine.isConfigured()) throw new Error('请先填写 API 地址和 Key');
+        await this.chatEngine.chat('你好');
+      }
     });
 
     // 10. 注入API给插件
@@ -3770,6 +4203,31 @@ class WebPet {
 
     // 迷你游戏
     this.games = new MiniGames(this.bubble, this.container);
+
+    // 聊天引擎
+    this.chatEngine = new ChatEngine();
+
+    // 聊天面板
+    this.chatPanel = new ChatPanel({
+      getPetName: () => '小爪',
+      getMessages: () => this.chatEngine.history,
+      isConfigured: () => this.chatEngine.isConfigured(),
+      onSend: async (text) => {
+        this.chatPanel.setLoading(true);
+        try {
+          const reply = await this.chatEngine.chat(text);
+          this.chatPanel.setLoading(false);
+          this.chatPanel.refresh();
+          this.bubble.show(reply, 4000);
+        } catch (e) {
+          this.chatPanel.setLoading(false);
+          this.bubble.show('😿 ' + e.message, 3000);
+          this.chatPanel.refresh();
+        }
+      },
+      onClear: () => this.chatEngine.clearHistory(),
+      onOpenSettings: () => this.settings.show()
+    });
 
     // 天气系统
     this.weather = new WeatherSystem(this.container, this.bubble);
@@ -3844,6 +4302,12 @@ class WebPet {
       { label: '  🦊 狐狸', action: () => this._switchSkin('emoji_fox') },
       { label: '  🐧 企鹅', action: () => this._switchSkin('emoji_penguin') },
       ...customSkins.map(s => ({ label: '  🖼️ ' + s.name, action: () => this._switchSkin(s.id) })),
+      { divider: true },
+      // 聊天
+      { label: '💬 和宠物聊天', action: () => {
+        const rect = this.container.el.getBoundingClientRect();
+        this.chatPanel.show(rect.left, rect.top);
+      }},
       { divider: true },
       // 小游戏
       { label: '🎮 小游戏', isTitle: true },
@@ -4105,6 +4569,7 @@ class WebPet {
     this._contextMenu?.destroy();
     this.reminderWidget?.destroy();
     this.weatherWidget?.destroy();
+    this.chatPanel?.destroy();
   }
 }
 

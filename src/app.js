@@ -172,7 +172,18 @@ class WebPet {
       onImportImage: () => this._importImage(),
       onExport: () => this._exportData(),
       onImport: () => this._importData(),
-      onReset: () => this._resetData()
+      onReset: () => this._resetData(),
+      getChatConfig: () => ({
+        endpoint: this.chatEngine.endpoint,
+        apiKey: this.chatEngine.apiKey,
+        model: this.chatEngine.model,
+        systemPrompt: this.chatEngine.systemPrompt
+      }),
+      onSaveChatConfig: (cfg) => this.chatEngine.configure(cfg),
+      onTestChat: async () => {
+        if (!this.chatEngine.isConfigured()) throw new Error('请先填写 API 地址和 Key');
+        await this.chatEngine.chat('你好');
+      }
     });
 
     // 10. 注入API给插件
@@ -192,6 +203,31 @@ class WebPet {
 
     // 迷你游戏
     this.games = new MiniGames(this.bubble, this.container);
+
+    // 聊天引擎
+    this.chatEngine = new ChatEngine();
+
+    // 聊天面板
+    this.chatPanel = new ChatPanel({
+      getPetName: () => '小爪',
+      getMessages: () => this.chatEngine.history,
+      isConfigured: () => this.chatEngine.isConfigured(),
+      onSend: async (text) => {
+        this.chatPanel.setLoading(true);
+        try {
+          const reply = await this.chatEngine.chat(text);
+          this.chatPanel.setLoading(false);
+          this.chatPanel.refresh();
+          this.bubble.show(reply, 4000);
+        } catch (e) {
+          this.chatPanel.setLoading(false);
+          this.bubble.show('😿 ' + e.message, 3000);
+          this.chatPanel.refresh();
+        }
+      },
+      onClear: () => this.chatEngine.clearHistory(),
+      onOpenSettings: () => this.settings.show()
+    });
 
     // 天气系统
     this.weather = new WeatherSystem(this.container, this.bubble);
@@ -266,6 +302,12 @@ class WebPet {
       { label: '  🦊 狐狸', action: () => this._switchSkin('emoji_fox') },
       { label: '  🐧 企鹅', action: () => this._switchSkin('emoji_penguin') },
       ...customSkins.map(s => ({ label: '  🖼️ ' + s.name, action: () => this._switchSkin(s.id) })),
+      { divider: true },
+      // 聊天
+      { label: '💬 和宠物聊天', action: () => {
+        const rect = this.container.el.getBoundingClientRect();
+        this.chatPanel.show(rect.left, rect.top);
+      }},
       { divider: true },
       // 小游戏
       { label: '🎮 小游戏', isTitle: true },
@@ -527,6 +569,7 @@ class WebPet {
     this._contextMenu?.destroy();
     this.reminderWidget?.destroy();
     this.weatherWidget?.destroy();
+    this.chatPanel?.destroy();
   }
 }
 
