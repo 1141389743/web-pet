@@ -80,7 +80,6 @@ class ReminderWidget {
     if (!this.el || this.el.style.display === 'none') return 0;
     return this.el.offsetHeight + 8; // 8px gap
   }
-  }
 
   _toggle() {
     this._collapsed = !this._collapsed;
