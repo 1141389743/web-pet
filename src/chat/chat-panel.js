@@ -1,5 +1,5 @@
 /**
- * 聊天面板 - 与宠物对话的浮动窗口
+ * 聊天面板 - 横向宽屏布局，贴近宠物底部弹出
  */
 class ChatPanel {
   constructor(options = {}) {
@@ -15,7 +15,7 @@ class ChatPanel {
     this.overlay = document.createElement('div');
     Object.assign(this.overlay.style, {
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.15)', zIndex: '2147483646',
+      background: 'rgba(0,0,0,0.1)', zIndex: '2147483646',
       display: 'none'
     });
     this.overlay.addEventListener('click', () => this.hide());
@@ -26,10 +26,8 @@ class ChatPanel {
     Object.assign(this.el.style, {
       position: 'fixed',
       zIndex: '2147483647',
-      width: '360px',
-      maxWidth: '90vw',
-      height: '480px',
-      maxHeight: '80vh',
+      width: '480px',
+      maxWidth: '92vw',
       background: '#fff',
       borderRadius: '16px',
       boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
@@ -37,8 +35,7 @@ class ChatPanel {
       fontSize: '13px',
       color: '#333',
       display: 'none',
-      overflow: 'hidden',
-      flexDirection: 'column'
+      overflow: 'hidden'
     });
     document.body.appendChild(this.el);
   }
@@ -46,19 +43,20 @@ class ChatPanel {
   show(x, y) {
     this._visible = true;
     this._render();
-    this.el.style.display = 'flex';
+    this.el.style.display = 'block';
     this.overlay.style.display = 'block';
 
-    // 定位
-    const pw = 360, ph = 480;
-    let px = x ? Math.min(x, window.innerWidth - pw - 10) : (window.innerWidth - pw) / 2;
-    let py = y ? y - ph - 20 : (window.innerHeight - ph) / 2;
-    if (py < 10) py = y ? y + 20 : 10;
-    if (px < 10) px = 10;
+    // 定位：宠物下方，水平居中对齐宠物
+    const pw = 480;
+    let px = x ? x - pw / 2 : (window.innerWidth - pw) / 2;
+    let py = y ? y + 20 : window.innerHeight - 260;
+    // 边界修正
+    px = Math.max(8, Math.min(px, window.innerWidth - pw - 8));
+    if (py + 250 > window.innerHeight) py = y - 260;
+    if (py < 8) py = 8;
     this.el.style.left = px + 'px';
     this.el.style.top = py + 'px';
 
-    // 聚焦输入框
     setTimeout(() => {
       const input = this.el.querySelector('#cp-input');
       if (input) input.focus();
@@ -77,44 +75,44 @@ class ChatPanel {
     const isConfigured = this.options.isConfigured?.();
 
     this.el.innerHTML = `
-      <div style="background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">💬</span>
-          <span style="font-size:15px;font-weight:600">和${petName}聊天</span>
+      <div style="background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:16px">💬</span>
+          <span style="font-size:14px;font-weight:600">和${petName}聊天</span>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <span style="cursor:pointer;font-size:14px;opacity:0.8" id="cp-clear" title="清空对话">🗑️</span>
-          <span style="cursor:pointer;font-size:18px" id="cp-close">✕</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="cursor:pointer;font-size:13px;opacity:0.8" id="cp-clear" title="清空对话">🗑️</span>
+          <span style="cursor:pointer;font-size:16px" id="cp-close">✕</span>
         </div>
       </div>
 
       ${!isConfigured ? `
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center">
-          <div style="font-size:40px;margin-bottom:12px">🔑</div>
-          <div style="font-size:14px;color:#666;margin-bottom:16px">请先配置 AI 接口才能聊天</div>
-          <button class="cp-btn" id="cp-goto-settings" style="padding:10px 24px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer">去设置</button>
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:32px;margin-bottom:8px">🔑</div>
+          <div style="font-size:13px;color:#666;margin-bottom:12px">请先配置 AI 接口才能聊天</div>
+          <button class="cp-btn" id="cp-goto-settings" style="padding:8px 20px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">去设置</button>
         </div>
       ` : `
-        <div id="cp-messages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div id="cp-messages" style="height:180px;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:8px">
           ${messages.length === 0 ? `
-            <div style="text-align:center;color:#ccc;padding:40px 0">
-              <div style="font-size:32px;margin-bottom:8px">🐾</div>
-              <div>说点什么和${petName}聊聊吧~</div>
+            <div style="text-align:center;color:#ccc;padding:30px 0">
+              <div style="font-size:24px;margin-bottom:4px">🐾</div>
+              <div style="font-size:12px">说点什么和${petName}聊聊吧~</div>
             </div>
           ` : messages.map(m => this._renderMsg(m, petName)).join('')}
           ${this._loading ? `
-            <div style="display:flex;gap:6px;align-items:flex-start">
-              <span style="font-size:16px">🐱</span>
-              <div style="background:#f5f5f5;padding:8px 12px;border-radius:12px;border-top-left-radius:2px">
+            <div style="display:flex;gap:5px;align-items:flex-start">
+              <span style="font-size:14px">🐱</span>
+              <div style="background:#f5f5f5;padding:6px 10px;border-radius:10px;border-top-left-radius:2px;font-size:12px">
                 <span class="cp-typing">思考中<span class="cp-dots">...</span></span>
               </div>
             </div>
           ` : ''}
         </div>
 
-        <div style="padding:10px 14px;border-top:1px solid #f0f0f0;display:flex;gap:8px;flex-shrink:0;background:#fafafa">
-          <input type="text" id="cp-input" placeholder="说点什么..." style="flex:1;padding:10px 12px;border:1px solid #e0e0e0;border-radius:10px;font-size:13px;outline:none;background:#fff" />
-          <button id="cp-send" style="padding:10px 16px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;flex-shrink:0">发送</button>
+        <div style="padding:8px 12px;border-top:1px solid #f0f0f0;display:flex;gap:6px;background:#fafafa">
+          <input type="text" id="cp-input" placeholder="说点什么..." style="flex:1;padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none;background:#fff" />
+          <button id="cp-send" style="padding:8px 14px;background:linear-gradient(135deg,#FF6B81,#FF9A9E);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;flex-shrink:0">发送</button>
         </div>
       `}
     `;
@@ -131,16 +129,15 @@ class ChatPanel {
     const bg = isUser ? 'linear-gradient(135deg,#667eea,#764ba2)' : '#f5f5f5';
     const color = isUser ? '#fff' : '#333';
     const align = isUser ? 'flex-end' : 'flex-start';
-    const radius = isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px';
+    const radius = isUser ? '10px 10px 2px 10px' : '10px 10px 10px 2px';
 
     return `
-      <div style="display:flex;gap:6px;align-items:flex-start;justify-content:${align}">
-        ${!isUser ? `<span style="font-size:16px;flex-shrink:0">${avatar}</span>` : ''}
-        <div style="max-width:80%">
-          <div style="font-size:11px;color:#999;margin-bottom:3px;text-align:${isUser ? 'right' : 'left'}">${name}</div>
-          <div style="background:${bg};color:${color};padding:8px 12px;border-radius:${radius};white-space:pre-wrap;word-break:break-word;line-height:1.5">${this._esc(msg.content)}</div>
+      <div style="display:flex;gap:5px;align-items:flex-end;justify-content:${align}">
+        ${!isUser ? `<span style="font-size:14px;flex-shrink:0">${avatar}</span>` : ''}
+        <div style="max-width:75%">
+          <div style="background:${bg};color:${color};padding:6px 10px;border-radius:${radius};white-space:pre-wrap;word-break:break-word;line-height:1.4;font-size:12px">${this._esc(msg.content)}</div>
         </div>
-        ${isUser ? `<span style="font-size:16px;flex-shrink:0">${avatar}</span>` : ''}
+        ${isUser ? `<span style="font-size:14px;flex-shrink:0">${avatar}</span>` : ''}
       </div>
     `;
   }
