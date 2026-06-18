@@ -1,0 +1,259 @@
+/**
+ * Web悬浮桌面宠物 - 主入口
+ * 一行代码引入即可运行
+ */
+class WebPet {
+  constructor(options = {}) {
+    this.options = Object.assign({
+      size: 100,
+      scale: 1.0,
+      opacity: 1.0,
+      edgeSnap: true,
+      skin: 'default_cat',
+      idleEnabled: true,
+      idleInterval: 8000,
+      hourlyEnabled: true,
+      silentStart: 23,
+      silentEnd: 7
+    }, options);
+
+    this._loadConfig();
+    this._init();
+  }
+
+  _loadConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('web_pet_config') || '{}');
+      Object.assign(this.options, saved);
+    } catch {}
+  }
+
+  _saveConfig() {
+    try {
+      const cfg = {
+        scale: this.options.scale,
+        opacity: this.options.opacity,
+        edgeSnap: this.options.edgeSnap,
+        skin: this.options.skin,
+        idleEnabled: this.options.idleEnabled,
+        idleInterval: this.options.idleInterval,
+        hourlyEnabled: this.options.hourlyEnabled,
+        silentStart: this.options.silentStart,
+        silentEnd: this.options.silentEnd
+      };
+      localStorage.setItem('web_pet_config', JSON.stringify(cfg));
+    } catch {}
+  }
+
+  _init() {
+    // 1. 容器
+    this.container = new PetContainer({
+      size: this.options.size,
+      scale: this.options.scale,
+      opacity: this.options.opacity,
+      edgeSnap: this.options.edgeSnap
+    });
+    this.container.loadPosition();
+
+    // 2. 动画器
+    this.animator = new PetAnimator(this.container);
+
+    // 3. 状态机
+    this.stateMachine = new PetStateMachine(this.animator);
+    this.stateMachine.setIdleEnabled(this.options.idleEnabled);
+    this.stateMachine.setIdleInterval(this.options.idleInterval);
+    this.stateMachine.onStateChange = (state) => {
+      this.plugins.trigger('state_change', { state });
+    };
+
+    // 4. 皮肤管理
+    this.skinManager = new SkinManager(this.stateMachine);
+
+    // 5. 气泡系统
+    this.bubble = new BubbleSystem(this.container);
+
+    // 6. 鼠标交互
+    this.mouse = new MouseHandler(this.container, this.stateMachine);
+    this.mouse.onClick = () => this.plugins.trigger('click');
+    this.mouse.onHover = () => this.plugins.trigger('hover');
+    this.mouse.onDoubleClick = () => this.settings.toggle();
+    this.mouse.onContextMenu = (e) => this._showContextMenu(e);
+
+    // 7. 插件系统
+    this.plugins = new PluginSystem();
+    this._registerBuiltinPlugins();
+
+    // 8. 工具
+    this.reminder = new ReminderTool();
+    this.reminder.onTrigger = (r) => {
+      this.bubble.show('⏰ ' + r.content, 5000, 'reminder');
+      this.stateMachine.changeState('happy');
+    };
+
+    this.hourly = new HourlyTool();
+    this.hourly.enabled = this.options.hourlyEnabled;
+    this.hourly.silentStart = this.options.silentStart;
+    this.hourly.silentEnd = this.options.silentEnd;
+    this.hourly.onChime = (hour) => {
+      const texts = [
+        `现在是 ${hour}:00`, `${hour}点了~`,
+        hour < 12 ? '上午好！' : hour < 18 ? '下午好！' : '晚上好！'
+      ];
+      this.bubble.show(texts[Math.floor(Math.random() * texts.length)], 4000, 'hourly');
+    };
+
+    this.notepad = new NotepadTool();
+
+    // 9. 设置面板
+    this.settings = new SettingsPanel({
+      getConfig: () => this.options,
+      getSkins: () => this.skinManager.getSkinList(),
+      getCurrentSkinId: () => this.options.skin,
+      onScaleChange: (v) => { this.options.scale = v; this.container.setScale(v); this._saveConfig(); },
+      onOpacityChange: (v) => { this.options.opacity = v; this.container.setOpacity(v); this._saveConfig(); },
+      onEdgeSnapChange: (v) => { this.options.edgeSnap = v; this.container.edgeSnap = v; this._saveConfig(); },
+      onIdleEnabledChange: (v) => { this.options.idleEnabled = v; this.stateMachine.setIdleEnabled(v); this._saveConfig(); },
+      onIdleIntervalChange: (v) => { this.options.idleInterval = v; this.stateMachine.setIdleInterval(v); this._saveConfig(); },
+      onHourlyChange: (v) => { this.options.hourlyEnabled = v; this.hourly.setEnabled(v); this._saveConfig(); },
+      onSkinChange: (id) => { this.options.skin = id; this.skinManager.applySkin(id); this._saveConfig(); this.settings._render(); },
+      onExport: () => this._exportData(),
+      onImport: () => this._importData(),
+      onReset: () => this._resetData()
+    });
+
+    // 10. 注入API给插件
+    this.plugins.setAPI({
+      showBubble: (text, dur) => this.bubble.show(text, dur),
+      changeState: (state) => this.stateMachine.changeState(state),
+      getContainer: () => this.container
+    });
+
+    // 11. 加载皮肤并启动
+    const skinId = this.options.skin || 'default_cat';
+    this.skinManager.applySkin(skinId);
+    this.stateMachine.startIdleScheduler();
+
+    // 检查是否有常驻便签
+    this._showPinnedNote();
+
+    // 全屏检测
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) this.container.hide();
+      else this.container.show();
+    });
+
+    console.log('[WebPet] 🐱 桌面宠物已启动！');
+  }
+
+  _registerBuiltinPlugins() {
+    for (const plugin of Object.values(BuiltInPlugins)) {
+      this.plugins.register({ ...plugin });
+    }
+  }
+
+  _showContextMenu(e) {
+    if (!this._contextMenu) this._contextMenu = new ContextMenu();
+    this._contextMenu.show(e.clientX, e.clientY, [
+      { label: '👁️ 显示/隐藏', action: () => this.container.toggle() },
+      { label: '📍 重置位置', action: () => this.container.resetPosition() },
+      { divider: true },
+      { label: '💬 随机语录', action: () => this.bubble.show(this.bubble.getRandomQuote('click')) },
+      { label: '📝 新建便签', action: () => this._quickNote() },
+      { label: '⏰ 新建提醒', action: () => this._quickReminder() },
+      { divider: true },
+      { label: '⚙️ 设置', action: () => this.settings.show() }
+    ]);
+  }
+
+  _quickNote() {
+    const text = prompt('输入便签内容：');
+    if (text) {
+      this.notepad.add(text);
+      this.bubble.show('📝 已保存便签', 2000);
+    }
+  }
+
+  _quickReminder() {
+    const text = prompt('提醒内容：');
+    if (!text) return;
+    const minutes = prompt('多少分钟后提醒？', '30');
+    if (minutes && !isNaN(minutes)) {
+      this.reminder.add(text, Date.now() + Number(minutes) * 60000);
+      this.bubble.show(`⏰ ${minutes}分钟后提醒`, 2000);
+    }
+  }
+
+  _showPinnedNote() {
+    const pinned = this.notepad.getPinned();
+    if (pinned.length > 0) {
+      setTimeout(() => this.bubble.show('📝 ' + pinned[0].text, 4000), 2000);
+    }
+  }
+
+  _exportData() {
+    const data = {
+      config: JSON.parse(localStorage.getItem('web_pet_config') || '{}'),
+      reminders: JSON.parse(localStorage.getItem('web_pet_reminders') || '[]'),
+      notes: JSON.parse(localStorage.getItem('web_pet_notes') || '[]'),
+      quotes: this.bubble.getAllQuotes(),
+      exportTime: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'web-pet-backup.json';
+    a.click();
+  }
+
+  _importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.config) localStorage.setItem('web_pet_config', JSON.stringify(data.config));
+        if (data.reminders) localStorage.setItem('web_pet_reminders', JSON.stringify(data.reminders));
+        if (data.notes) localStorage.setItem('web_pet_notes', JSON.stringify(data.notes));
+        alert('导入成功，刷新页面生效');
+      } catch { alert('导入失败，文件格式错误'); }
+    };
+    input.click();
+  }
+
+  _resetData() {
+    localStorage.removeItem('web_pet_config');
+    localStorage.removeItem('web_pet_position');
+    localStorage.removeItem('web_pet_skin');
+    localStorage.removeItem('web_pet_reminders');
+    localStorage.removeItem('web_pet_notes');
+    localStorage.removeItem('web_pet_hourly');
+    location.reload();
+  }
+
+  // === 公开API ===
+  show() { this.container.show(); }
+  hide() { this.container.hide(); }
+  toggle() { this.container.toggle(); }
+  say(text, duration) { this.bubble.show(text, duration); }
+  setSkin(id) { this.options.skin = id; this.skinManager.applySkin(id); this._saveConfig(); }
+
+  destroy() {
+    this.container.destroy();
+    this.animator.destroy();
+    this.stateMachine.destroy();
+    this.bubble.destroy();
+    this.mouse.destroy();
+    this.reminder.destroy();
+    this.hourly.destroy();
+    this.settings.destroy();
+    this._contextMenu?.destroy();
+  }
+}
+
+// 自动初始化
+if (typeof window !== 'undefined') {
+  window.WebPet = WebPet;
+}

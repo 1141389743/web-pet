@@ -1,0 +1,7 @@
+/* 宠物容器全局样式 */
+.web-pet-container {
+  pointer-events: auto !important;
+}
+.web-pet-bubble {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}

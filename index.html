@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 悬浮桌面宠物 🐱</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #fff;
+}
+.hero {
+  text-align: center;
+  padding: 80px 20px 40px;
+}
+.hero h1 { font-size: 48px; margin-bottom: 12px; }
+.hero p { font-size: 18px; opacity: 0.85; max-width: 500px; margin: 0 auto; }
+.features {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 20px;
+  max-width: 800px; margin: 40px auto; padding: 0 20px;
+}
+.feature {
+  background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
+  border-radius: 16px; padding: 24px; width: 230px; text-align: center;
+}
+.feature-icon { font-size: 36px; margin-bottom: 8px; }
+.feature-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.feature-desc { font-size: 13px; opacity: 0.8; }
+.code-block {
+  max-width: 500px; margin: 30px auto; padding: 0 20px;
+}
+.code-block pre {
+  background: rgba(0,0,0,0.3); border-radius: 12px; padding: 16px;
+  font-size: 14px; overflow-x: auto; font-family: 'Fira Code', monospace;
+}
+.footer {
+  text-align: center; padding: 40px 20px; opacity: 0.6; font-size: 13px;
+}
+.try-hint {
+  position: fixed; bottom: 140px; right: 30px;
+  background: rgba(255,255,255,0.9); color: #333;
+  padding: 10px 16px; border-radius: 12px;
+  font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  animation: bounce 2s infinite;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>🐱 Web 桌面宠物</h1>
+  <p>轻量悬浮宠物组件，原生JS实现，零框架依赖，一行代码嵌入任意网页</p>
+</div>
+
+<div class="features">
+  <div class="feature">
+    <div class="feature-icon">🖱️</div>
+    <div class="feature-title">自由拖动</div>
+    <div class="feature-desc">拖拽、边缘吸附、物理回弹</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🎬</div>
+    <div class="feature-title">帧动画</div>
+    <div class="feature-desc">状态机驱动，多状态切换</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">💬</div>
+    <div class="feature-title">对话气泡</div>
+    <div class="feature-desc">随机语录、提醒消息</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🎨</div>
+    <div class="feature-title">自定义皮肤</div>
+    <div class="feature-desc">导入皮肤包，一键切换</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">⏰</div>
+    <div class="feature-title">提醒工具</div>
+    <div class="feature-desc">定时提醒、整点报时、便签</div>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🔌</div>
+    <div class="feature-title">插件系统</div>
+    <div class="feature-desc">事件驱动，自由扩展互动</div>
+  </div>
+</div>
+
+<div class="code-block">
+  <pre><code>&lt;!-- 一行代码引入 --&gt;
+&lt;script src="web-pet.min.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const pet = new WebPet({ skin: 'default_cat' });
+  pet.say('你好呀~');
+&lt;/script&gt;</code></pre>
+</div>
+
+<div class="footer">
+  <p>右下角有宠物在等你 👉 试试点击、拖动、右键它~</p>
+</div>
+
+<div class="try-hint">👈 点我试试！</div>
+
+<!-- 加载宠物 -->
+<script src="src/core/container.js"></script>
+<script src="src/core/animator.js"></script>
+<script src="src/core/state-machine.js"></script>
+<script src="src/interaction/mouse.js"></script>
+<script src="src/interaction/plugin-system.js"></script>
+<script src="src/bubble/bubble.js"></script>
+<script src="src/skins/skin-manager.js"></script>
+<script src="src/tools/reminder.js"></script>
+<script src="src/tools/hourly.js"></script>
+<script src="src/tools/notepad.js"></script>
+<script src="src/ui/context-menu.js"></script>
+<script src="src/ui/settings.js"></script>
+<script src="src/app.js"></script>
+<script>
+  // 启动宠物
+  const pet = new WebPet({ skin: 'default_cat', size: 120 });
+
+  // 3秒后打招呼
+  setTimeout(() => pet.say('你好呀~ 点我试试！'), 2000);
+</script>
+</body>
+</html>

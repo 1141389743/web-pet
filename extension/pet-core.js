@@ -1,0 +1,1737 @@
+/**
+ * 悬浮容器 - 透明无边框、拖动、边缘吸附、层级控制
+ */
+class PetContainer {
+  constructor(options = {}) {
+    this.size = options.size || 100;
+    this.scale = options.scale || 1.0;
+    this.opacity = options.opacity || 1.0;
+    this.edgeSnap = options.edgeSnap !== false;
+    this.position = options.position || { x: window.innerWidth - 130, y: window.innerHeight - 150 };
+
+    this.el = null;
+    this.isDragging = false;
+    this.dragOffset = { x: 0, y: 0 };
+    this.isSnapped = false;
+    this.snapSide = null;
+    this.isVisible = true;
+
+    this._onResize = this._handleResize.bind(this);
+    this._onMove = this._handleMove.bind(this);
+    this._onUp = this._handleUp.bind(this);
+
+    this._init();
+  }
+
+  _init() {
+    this.el = document.createElement('div');
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      zIndex: '2147483647',
+      width: this.size + 'px',
+      height: this.size + 'px',
+      left: this.position.x + 'px',
+      top: this.position.y + 'px',
+      cursor: 'grab',
+      userSelect: 'none',
+      webkitUserSelect: 'none',
+      pointerEvents: 'auto',
+      transition: 'transform 0.3s ease, opacity 0.3s ease',
+      transformOrigin: 'center bottom'
+    });
+
+    this.el.classList.add('web-pet-container');
+    this._applyScale();
+    this._applyOpacity();
+
+    document.body.appendChild(this.el);
+    window.addEventListener('resize', this._onResize);
+  }
+
+  _applyScale() {
+    this.el.style.transform = `scale(${this.scale})`;
+  }
+
+  _applyOpacity() {
+    this.el.style.opacity = this.opacity;
+  }
+
+  setScale(s) {
+    this.scale = Math.max(0.2, Math.min(2, s));
+    this._applyScale();
+  }
+
+  setOpacity(o) {
+    this.opacity = Math.max(0.2, Math.min(1, o));
+    this._applyOpacity();
+  }
+
+  setPosition(x, y) {
+    this.position = { x, y };
+    this.el.style.left = x + 'px';
+    this.el.style.top = y + 'px';
+  }
+
+  show() {
+    this.isVisible = true;
+    this.el.style.display = '';
+    this.el.style.opacity = this.opacity;
+  }
+
+  hide() {
+    this.isVisible = false;
+    this.el.style.opacity = '0';
+    setTimeout(() => { if (!this.isVisible) this.el.style.display = 'none'; }, 300);
+  }
+
+  toggle() {
+    this.isVisible ? this.hide() : this.show();
+  }
+
+  resetPosition() {
+    this.isSnapped = false;
+    this.snapSide = null;
+    this.setPosition(window.innerWidth - 130, window.innerHeight - 150);
+  }
+
+  // 拖动
+  startDrag(e) {
+    if (this.isSnapped) {
+      this.isSnapped = false;
+      this.el.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+    }
+    this.isDragging = true;
+    const rect = this.el.getBoundingClientRect();
+    this.dragOffset = {
+      x: (e.clientX || e.touches?.[0]?.clientX || 0) - rect.left,
+      y: (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top
+    };
+    this.el.style.cursor = 'grabbing';
+    this.el.style.transition = 'transform 0.1s ease';
+
+    document.addEventListener('mousemove', this._onMove);
+    document.addEventListener('mouseup', this._onUp);
+    document.addEventListener('touchmove', this._onMove, { passive: false });
+    document.addEventListener('touchend', this._onUp);
+  }
+
+  _handleMove(e) {
+    if (!this.isDragging) return;
+    e.preventDefault();
+    const cx = e.clientX || e.touches?.[0]?.clientX || 0;
+    const cy = e.clientY || e.touches?.[0]?.clientY || 0;
+    let x = cx - this.dragOffset.x;
+    let y = cy - this.dragOffset.y;
+
+    // 边界限制
+    x = Math.max(0, Math.min(window.innerWidth - this.size * this.scale, x));
+    y = Math.max(0, Math.min(window.innerHeight - this.size * this.scale, y));
+
+    this.setPosition(x, y);
+
+    // 边缘吸附提示
+    if (this.edgeSnap) {
+      if (x < 10) this.el.style.transform = `scale(${this.scale}) translateX(-20px)`;
+      else if (x > window.innerWidth - this.size * this.scale - 10) this.el.style.transform = `scale(${this.scale}) translateX(20px)`;
+      else this.el.style.transform = `scale(${this.scale})`;
+    }
+  }
+
+  _handleUp(e) {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+    this.el.style.cursor = 'grab';
+    this.el.style.transition = 'transform 0.3s ease, left 0.3s ease, top 0.3s ease, opacity 0.3s ease';
+
+    document.removeEventListener('mousemove', this._onMove);
+    document.removeEventListener('mouseup', this._onUp);
+    document.removeEventListener('touchmove', this._onMove);
+    document.removeEventListener('touchend', this._onUp);
+
+    // 边缘吸附
+    if (this.edgeSnap) {
+      const cx = this.position.x;
+      if (cx < 10) {
+        this.isSnapped = true;
+        this.snapSide = 'left';
+        this.setPosition(-this.size * this.scale * 0.6, this.position.y);
+      } else if (cx > window.innerWidth - this.size * this.scale - 10) {
+        this.isSnapped = true;
+        this.snapSide = 'right';
+        this.setPosition(window.innerWidth - this.size * this.scale * 0.4, this.position.y);
+      }
+    }
+
+    // 回弹动画
+    if (!this.isSnapped) {
+      this._bounceEffect();
+    }
+
+    this._savePosition();
+
+    // 回调
+    if (this.onDragEnd) this.onDragEnd(this.position);
+  }
+
+  _bounceEffect() {
+    this.el.style.transition = 'transform 0.1s ease-in';
+    this.el.style.transform = `scale(${this.scale}) translateY(5px)`;
+    setTimeout(() => {
+      this.el.style.transition = 'transform 0.2s ease-out';
+      this.el.style.transform = `scale(${this.scale}) translateY(-3px)`;
+      setTimeout(() => {
+        this.el.style.transition = 'transform 0.15s ease';
+        this.el.style.transform = `scale(${this.scale})`;
+      }, 200);
+    }, 100);
+  }
+
+  _handleResize() {
+    // 确保在视口内
+    const maxX = window.innerWidth - this.size * this.scale;
+    const maxY = window.innerHeight - this.size * this.scale;
+    if (this.position.x > maxX || this.position.y > maxY) {
+      this.setPosition(Math.min(this.position.x, maxX), Math.min(this.position.y, maxY));
+    }
+  }
+
+  _savePosition() {
+    try {
+      localStorage.setItem('web_pet_position', JSON.stringify(this.position));
+    } catch {}
+  }
+
+  loadPosition() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('web_pet_position'));
+      if (saved && typeof saved.x === 'number') {
+        this.setPosition(saved.x, saved.y);
+      }
+    } catch {}
+  }
+
+  // 吸附状态下鼠标靠近时弹出
+  checkSnapHover(mouseX) {
+    if (!this.isSnapped) return;
+    const rect = this.el.getBoundingClientRect();
+    const dist = this.snapSide === 'left' ? mouseX - rect.right : rect.left - mouseX;
+    if (dist < 30) {
+      if (this.snapSide === 'left') this.setPosition(0, this.position.y);
+      else this.setPosition(window.innerWidth - this.size * this.scale, this.position.y);
+    }
+  }
+
+  destroy() {
+    window.removeEventListener('resize', this._onResize);
+    this.el?.remove();
+  }
+}
+/**
+ * 帧动画播放器 - PNG序列帧播放，支持GIF
+ */
+class PetAnimator {
+  constructor(container) {
+    this.container = container;
+    this.el = document.createElement('div');
+    Object.assign(this.el.style, {
+      width: '100%', height: '100%',
+      position: 'relative', overflow: 'hidden',
+      backgroundSize: 'contain',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      imageRendering: 'auto'
+    });
+    container.el.appendChild(this.el);
+
+    this.frames = [];
+    this.frameIndex = 0;
+    this.fps = 15;
+    this.isGif = false;
+    this.isPaused = false;
+    this._timer = null;
+    this._imgCache = [];
+  }
+
+  /**
+   * 加载帧动画
+   * @param {Array<string>} frameUrls - 帧图片URL数组
+   * @param {number} fps - 帧率
+   * @param {boolean} loop - 是否循环
+   */
+  loadFrames(frameUrls, fps = 15, loop = true) {
+    this.stop();
+    this.frames = frameUrls;
+    this.fps = fps;
+    this.loop = loop;
+    this.frameIndex = 0;
+    this.isGif = false;
+
+    if (frameUrls.length === 0) return;
+
+    // 检查是否为GIF
+    if (frameUrls.length === 1 && frameUrls[0].toLowerCase().endsWith('.gif')) {
+      this.isGif = true;
+      this.el.style.backgroundImage = `url(${frameUrls[0]})`;
+      return;
+    }
+
+    // 预加载帧
+    this._imgCache = [];
+    let loaded = 0;
+    frameUrls.forEach((url, i) => {
+      const img = new Image();
+      img.onload = () => {
+        loaded++;
+        this._imgCache[i] = img;
+        if (loaded === frameUrls.length) {
+          this._showFrame(0);
+          this.play();
+        }
+      };
+      img.onerror = () => {
+        loaded++;
+        if (loaded === frameUrls.length && this._imgCache.length > 0) {
+          this._showFrame(0);
+          this.play();
+        }
+      };
+      img.src = url;
+    });
+  }
+
+  /**
+   * 加载单张静态图
+   */
+  loadStatic(imageUrl) {
+    this.stop();
+    this.frames = [imageUrl];
+    this.isGif = false;
+    this.el.style.backgroundImage = `url(${imageUrl})`;
+    this.el.style.backgroundSize = 'contain';
+  }
+
+  play() {
+    if (this.isGif || this.frames.length <= 1) return;
+    this.isPaused = false;
+    this._startTimer();
+  }
+
+  pause() {
+    this.isPaused = true;
+    this._stopTimer();
+  }
+
+  stop() {
+    this.isPaused = true;
+    this._stopTimer();
+    this.frameIndex = 0;
+  }
+
+  _startTimer() {
+    this._stopTimer();
+    const interval = Math.max(16, Math.round(1000 / this.fps));
+    this._timer = setInterval(() => {
+      if (this.isPaused) return;
+      this.frameIndex++;
+      if (this.frameIndex >= this.frames.length) {
+        if (this.loop) {
+          this.frameIndex = 0;
+        } else {
+          this._stopTimer();
+          if (this.onFinish) this.onFinish();
+          return;
+        }
+      }
+      this._showFrame(this.frameIndex);
+    }, interval);
+  }
+
+  _stopTimer() {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
+    }
+  }
+
+  _showFrame(index) {
+    const img = this._imgCache[index];
+    if (img) {
+      this.el.style.backgroundImage = `url(${img.src})`;
+      this.el.style.backgroundSize = 'contain';
+      this.el.style.backgroundPosition = 'center';
+      this.el.style.backgroundRepeat = 'no-repeat';
+    }
+  }
+
+  /**
+   * 通过CSS sprite方式播放（适用于sprite sheet）
+   */
+  loadSpriteSheet(spriteUrl, frameWidth, frameHeight, totalFrames, fps = 15) {
+    this.stop();
+    this.fps = fps;
+    this.frameIndex = 0;
+    this.loop = true;
+
+    const img = new Image();
+    img.onload = () => {
+      this.el.style.backgroundImage = `url(${spriteUrl})`;
+      this.el.style.backgroundSize = `${frameWidth * totalFrames}px ${frameHeight}px`;
+      this._spriteFrameWidth = frameWidth;
+      this._spriteTotalFrames = totalFrames;
+      this.play();
+    };
+    img.src = spriteUrl;
+
+    this._showSpriteFrame = (index) => {
+      const offset = -index * this._spriteFrameWidth;
+      this.el.style.backgroundPosition = `${offset}px 0`;
+    };
+
+    // Override _showFrame for sprite mode
+    this._showFrame = this._showSpriteFrame || this._showFrame;
+  }
+
+  destroy() {
+    this.stop();
+    this.el?.remove();
+  }
+}
+/**
+ * 动画状态机 - 管理宠物动画状态切换
+ * 状态优先级: dragged > clicked > happy > idle_action > walk > idle
+ */
+class PetStateMachine {
+  constructor(animator) {
+    this.animator = animator;
+    this.currentState = 'idle';
+    this.previousState = 'idle';
+    this.animations = {}; // state -> { urls, fps, loop, priority }
+    this.isTransitioning = false;
+    this._idleTimer = null;
+    this._idleActionInterval = 8000; // 8秒
+    this._idleActions = ['idle_action', 'walk'];
+    this._idleEnabled = true;
+
+    // 状态优先级
+    this._priority = {
+      'dragged': 100,
+      'clicked': 80,
+      'happy': 70,
+      'walk': 30,
+      'idle_action': 20,
+      'idle': 0
+    };
+  }
+
+  /**
+   * 注册状态动画
+   */
+  registerAnimation(state, urls, fps = 15, loop = true, priority = null) {
+    this.animations[state] = {
+      urls, fps, loop,
+      priority: priority ?? (this._priority[state] || 0)
+    };
+  }
+
+  /**
+   * 从皮肤配置加载所有动画
+   */
+  loadFromSkin(skinConfig, baseUrl = '') {
+    const anims = skinConfig.animations || {};
+    for (const [state, cfg] of Object.entries(anims)) {
+      const urls = (cfg.frames || []).map(f => baseUrl + f);
+      this.registerAnimation(state, urls, cfg.fps || 10, cfg.loop !== false);
+    }
+  }
+
+  /**
+   * 切换状态
+   * @param {string} newState - 目标状态
+   * @param {boolean} force - 是否强制切换
+   */
+  changeState(newState, force = false) {
+    if (!this.animations[newState]) return;
+    if (newState === this.currentState && !force) return;
+
+    // 优先级检查：低优先级不能打断高优先级
+    if (!force && this._priority[newState] < (this._priority[this.currentState] || 0)) {
+      return;
+    }
+
+    this.previousState = this.currentState;
+    this.currentState = newState;
+
+    const anim = this.animations[newState];
+    this.animator.loadFrames(anim.urls, anim.fps, anim.loop);
+
+    // 单次播放动画完成后回到idle
+    if (!anim.loop) {
+      this.animator.onFinish = () => {
+        this.changeState('idle');
+      };
+    }
+
+    // 通知
+    if (this.onStateChange) {
+      this.onStateChange(newState, this.previousState);
+    }
+  }
+
+  /**
+   * 启动闲置行为调度
+   */
+  startIdleScheduler() {
+    this._stopIdleScheduler();
+    if (!this._idleEnabled) return;
+
+    const schedule = () => {
+      const delay = this._idleActionInterval + Math.random() * 4000;
+      this._idleTimer = setTimeout(() => {
+        if (this.currentState === 'idle') {
+          const action = this._idleActions[Math.floor(Math.random() * this._idleActions.length)];
+          if (this.animations[action]) {
+            this.changeState(action);
+          }
+        }
+        schedule();
+      }, delay);
+    };
+    schedule();
+  }
+
+  _stopIdleScheduler() {
+    if (this._idleTimer) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = null;
+    }
+  }
+
+  setIdleInterval(ms) {
+    this._idleActionInterval = Math.max(5000, Math.min(120000, ms));
+  }
+
+  setIdleEnabled(enabled) {
+    this._idleEnabled = enabled;
+    if (!enabled) this._stopIdleScheduler();
+    else this.startIdleScheduler();
+  }
+
+  destroy() {
+    this._stopIdleScheduler();
+  }
+}
+/**
+ * 鼠标交互 - 点击、悬停、拖拽、右键菜单
+ */
+class MouseHandler {
+  constructor(container, stateMachine) {
+    this.container = container;
+    this.stateMachine = stateMachine;
+    this._hoverTimer = null;
+    this._clickCount = 0;
+    this._clickTimer = null;
+    this._lastClickTime = 0;
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    const el = this.container.el;
+
+    // mousedown - 拖拽开始
+    el.addEventListener('mousedown', (e) => {
+      if (e.button === 0) { // 左键
+        this.container.startDrag(e);
+        this.stateMachine.changeState('dragged');
+      }
+    });
+
+    // touchstart - 移动端拖拽
+    el.addEventListener('touchstart', (e) => {
+      this.container.startDrag(e.touches[0]);
+      this.stateMachine.changeState('dragged');
+    }, { passive: true });
+
+    // click - 区分单击/双击
+    el.addEventListener('click', (e) => {
+      if (this.container.isDragging) return;
+      const now = Date.now();
+      if (now - this._lastClickTime < 300) {
+        this._handleDoubleClick(e);
+        this._clickTimer && clearTimeout(this._clickTimer);
+      } else {
+        this._clickTimer = setTimeout(() => this._handleClick(e), 300);
+      }
+      this._lastClickTime = now;
+    });
+
+    // 拖拽结束回调
+    this.container.onDragEnd = () => {
+      this.stateMachine.changeState('idle');
+    };
+
+    // 悬停
+    el.addEventListener('mouseenter', () => {
+      this._hoverTimer = setTimeout(() => {
+        this.stateMachine.changeState('happy');
+        if (this.onHover) this.onHover();
+      }, 1000);
+      // 吸附状态鼠标靠近弹出
+      if (this.container.isSnapped) {
+        const rect = el.getBoundingClientRect();
+        const targetX = this.container.snapSide === 'left' ? 0 : window.innerWidth - this.container.size * this.container.scale;
+        this.container.setPosition(targetX, this.container.position.y);
+      }
+    });
+
+    el.addEventListener('mouseleave', () => {
+      clearTimeout(this._hoverTimer);
+      // 吸附状态鼠标离开收回
+      if (this.container.isSnapped) {
+        if (this.container.snapSide === 'left') {
+          this.container.setPosition(-this.container.size * this.container.scale * 0.6, this.container.position.y);
+        } else {
+          this.container.setPosition(window.innerWidth - this.container.size * this.container.scale * 0.4, this.container.position.y);
+        }
+      }
+    });
+
+    // 右键
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.onContextMenu) this.onContextMenu(e);
+    });
+  }
+
+  _handleClick(e) {
+    this.stateMachine.changeState('clicked');
+    if (this.onClick) this.onClick(e);
+  }
+
+  _handleDoubleClick(e) {
+    if (this.onDoubleClick) this.onDoubleClick(e);
+  }
+
+  destroy() {
+    clearTimeout(this._hoverTimer);
+    clearTimeout(this._clickTimer);
+  }
+}
+/**
+ * 互动插件系统 - 事件订阅模式
+ * 插件格式: { name, trigger(ctx), execute(ctx), priority, enabled }
+ */
+class PluginSystem {
+  constructor() {
+    this.plugins = [];
+    this._api = null; // 注入的统一API
+  }
+
+  /**
+   * 注入API供插件调用
+   */
+  setAPI(api) {
+    this._api = api;
+  }
+
+  /**
+   * 注册插件
+   */
+  register(plugin) {
+    if (!plugin.name || !plugin.execute) return;
+    plugin.enabled = plugin.enabled !== false;
+    plugin.priority = plugin.priority || 0;
+    this.plugins.push(plugin);
+    this.plugins.sort((a, b) => b.priority - a.priority);
+  }
+
+  /**
+   * 触发事件
+   * @param {string} eventType - 事件类型: click, hover, drag_start, drag_end, idle, double_click
+   * @param {object} context - 事件上下文
+   */
+  trigger(eventType, context = {}) {
+    context.eventType = eventType;
+    context.api = this._api;
+
+    for (const plugin of this.plugins) {
+      if (!plugin.enabled) continue;
+      try {
+        if (plugin.trigger && plugin.trigger(context)) {
+          plugin.execute(context);
+          break; // 第一个命中的插件执行后中断
+        }
+      } catch (e) {
+        console.warn(`[PetPlugin] ${plugin.name} error:`, e);
+      }
+    }
+  }
+
+  enablePlugin(name) {
+    const p = this.plugins.find(p => p.name === name);
+    if (p) p.enabled = true;
+  }
+
+  disablePlugin(name) {
+    const p = this.plugins.find(p => p.name === name);
+    if (p) p.enabled = false;
+  }
+
+  getPluginList() {
+    return this.plugins.map(p => ({
+      name: p.name, priority: p.priority, enabled: p.enabled
+    }));
+  }
+}
+
+// === 内置插件 ===
+
+const BuiltInPlugins = {
+  /** 点击随机语录 */
+  clickRandomQuote: {
+    name: 'clickRandomQuote',
+    priority: 10,
+    trigger: (ctx) => ctx.eventType === 'click',
+    execute: (ctx) => {
+      const quotes = [
+        '你好呀~', '别戳我啦！', '嘿嘿~', '今天也要加油！',
+        '摸摸头~', '别闹~', '有什么需要帮忙的吗？', '我好开心！'
+      ];
+      ctx.api.showBubble(quotes[Math.floor(Math.random() * quotes.length)]);
+    }
+  },
+
+  /** 悬停问候 */
+  hoverGreeting: {
+    name: 'hoverGreeting',
+    priority: 5,
+    trigger: (ctx) => ctx.eventType === 'hover',
+    execute: (ctx) => {
+      const now = new Date().getHours();
+      let greeting = now < 12 ? '早上好~' : now < 18 ? '下午好~' : '晚上好~';
+      ctx.api.showBubble(greeting, 2000);
+    }
+  },
+
+  /** 拖拽结束反馈 */
+  dragFeedback: {
+    name: 'dragFeedback',
+    priority: 20,
+    trigger: (ctx) => ctx.eventType === 'drag_end',
+    execute: (ctx) => {
+      const phrases = ['呼~安全了', '哎呀好晕', '换个地方也不错', '被你搬来搬去的'];
+      ctx.api.showBubble(phrases[Math.floor(Math.random() * phrases.length)]);
+    }
+  },
+
+  /** 闲置随机动作 */
+  idleRandomAction: {
+    name: 'idleRandomAction',
+    priority: 1,
+    trigger: (ctx) => ctx.eventType === 'idle',
+    execute: (ctx) => {
+      const actions = [
+        { state: 'walk', bubble: '出去溜达溜达~' },
+        { state: 'happy', bubble: '心情不错！' },
+        { state: 'idle_action', bubble: '' }
+      ];
+      const action = actions[Math.floor(Math.random() * actions.length)];
+      ctx.api.changeState(action.state);
+      if (action.bubble) ctx.api.showBubble(action.bubble, 2000);
+    }
+  }
+};
+/**
+ * 对话气泡系统 - 气泡渲染、语录池、消息队列
+ */
+class BubbleSystem {
+  constructor(container) {
+    this.container = container;
+    this.el = null;
+    this._queue = [];
+    this._showing = false;
+    this._timer = null;
+    this._defaultDuration = 3000;
+    this._quotes = {
+      click: ['你好呀~', '别戳我啦！', '嘿嘿~', '今天也要加油！', '摸摸头~'],
+      hover: ['有什么事吗？', '我在呢~', '嘻嘻', '看着你~'],
+      idle: ['有点无聊呢', '打个哈欠~', '好困呀...', '出去玩吧！'],
+      reminder: ['⏰ 该休息了', '📋 别忘了待办事项', '💧 记得喝水'],
+      hourly: ['', '现在是 {time}', '已经 {time} 了哦~']
+    };
+
+    this._init();
+  }
+
+  _init() {
+    this.el = document.createElement('div');
+    this.el.className = 'web-pet-bubble';
+    Object.assign(this.el.style, {
+      position: 'absolute',
+      bottom: '100%',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      maxWidth: '200px',
+      padding: '8px 14px',
+      background: 'rgba(255,255,255,0.95)',
+      borderRadius: '12px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+      fontSize: '13px',
+      lineHeight: '1.5',
+      color: '#333',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word',
+      pointerEvents: 'none',
+      opacity: '0',
+      transition: 'opacity 0.3s ease, transform 0.3s ease',
+      transformOrigin: 'center bottom',
+      zIndex: '1',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    });
+
+    // 尖角
+    const arrow = document.createElement('div');
+    Object.assign(arrow.style, {
+      position: 'absolute',
+      bottom: '-6px',
+      left: '50%',
+      transform: 'translateX(-50%) rotate(45deg)',
+      width: '12px',
+      height: '12px',
+      background: 'rgba(255,255,255,0.95)',
+      boxShadow: '2px 2px 4px rgba(0,0,0,0.06)'
+    });
+    this.el.appendChild(arrow);
+
+    this.container.el.appendChild(this.el);
+  }
+
+  /**
+   * 显示气泡
+   * @param {string} text - 文本内容
+   * @param {number} duration - 显示时长ms
+   * @param {string} type - 类型: normal, reminder, hourly
+   */
+  show(text, duration = this._defaultDuration, type = 'normal') {
+    if (!text) return;
+
+    // 加入队列
+    this._queue.push({ text, duration, type });
+    if (!this._showing) this._showNext();
+  }
+
+  _showNext() {
+    if (this._queue.length === 0) {
+      this._showing = false;
+      return;
+    }
+
+    this._showing = true;
+    const { text, duration, type } = this._queue.shift();
+
+    // 设置样式
+    const colors = {
+      normal: { bg: 'rgba(255,255,255,0.95)', color: '#333' },
+      reminder: { bg: 'rgba(255,243,224,0.95)', color: '#E65100' },
+      hourly: { bg: 'rgba(227,242,253,0.95)', color: '#1565C0' }
+    };
+    const style = colors[type] || colors.normal;
+
+    this.el.style.background = style.bg;
+    this.el.style.color = style.color;
+    this.el.querySelector('div').style.background = style.bg; // arrow
+
+    // 设置文本（去掉箭头）
+    const arrow = this.el.lastChild;
+    this.el.textContent = text;
+    this.el.appendChild(arrow);
+
+    // 显示动画
+    this.el.style.opacity = '1';
+    this.el.style.transform = 'translateX(-50%) translateY(0)';
+
+    // 自动隐藏
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => {
+      this.el.style.opacity = '0';
+      this.el.style.transform = 'translateX(-50%) translateY(5px)';
+      setTimeout(() => this._showNext(), 300);
+    }, duration);
+  }
+
+  /**
+   * 从语录池随机获取
+   */
+  getRandomQuote(category) {
+    const pool = this._quotes[category];
+    if (!pool || pool.length === 0) return '';
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  /**
+   * 添加自定义语录
+   */
+  addQuote(category, text) {
+    if (!this._quotes[category]) this._quotes[category] = [];
+    this._quotes[category].push(text);
+  }
+
+  /**
+   * 设置语录池
+   */
+  setQuotes(category, quotes) {
+    this._quotes[category] = quotes;
+  }
+
+  /**
+   * 获取所有语录
+   */
+  getAllQuotes() {
+    return { ...this._quotes };
+  }
+
+  destroy() {
+    clearTimeout(this._timer);
+    this.el?.remove();
+  }
+}
+/**
+ * 皮肤管理器 - 加载、切换、导入皮肤
+ */
+class SkinManager {
+  constructor(stateMachine) {
+    this.stateMachine = stateMachine;
+    this.skins = {};
+    this.currentSkin = null;
+    this._currentBaseUrl = '';
+
+    // 注册内置皮肤
+    this._registerBuiltinSkins();
+  }
+
+  _registerBuiltinSkins() {
+    // 默认小猫
+    this.skins['default_cat'] = {
+      name: '默认小猫',
+      version: '1.0',
+      author: 'system',
+      default_scale: 1.0,
+      hitbox: { x: 10, y: 10, width: 80, height: 80 },
+      animations: {
+        idle: { frames: ['skins/default_cat/idle_01.png', 'skins/default_cat/idle_02.png'], fps: 8, loop: true },
+        clicked: { frames: ['skins/default_cat/clicked_01.png'], fps: 5, loop: false },
+        dragged: { frames: ['skins/default_cat/dragged_01.png'], fps: 5, loop: true },
+        happy: { frames: ['skins/default_cat/happy_01.png', 'skins/default_cat/happy_02.png'], fps: 8, loop: false },
+        idle_action: { frames: ['skins/default_cat/idle_01.png', 'skins/default_cat/idle_02.png'], fps: 6, loop: false },
+        walk: { frames: ['skins/default_cat/walk_01.png', 'skins/default_cat/walk_02.png'], fps: 10, loop: false }
+      }
+    };
+
+    // 蓝色小鸟
+    this.skins['blue_bird'] = {
+      name: '蓝色小鸟',
+      version: '1.0',
+      author: 'system',
+      default_scale: 0.8,
+      hitbox: { x: 10, y: 10, width: 70, height: 70 },
+      animations: {
+        idle: { frames: ['skins/blue_bird/idle_01.png', 'skins/blue_bird/idle_02.png'], fps: 6, loop: true },
+        clicked: { frames: ['skins/blue_bird/clicked_01.png'], fps: 5, loop: false },
+        dragged: { frames: ['skins/blue_bird/dragged_01.png'], fps: 5, loop: true },
+        happy: { frames: ['skins/blue_bird/happy_01.png'], fps: 8, loop: false },
+        idle_action: { frames: ['skins/blue_bird/idle_01.png'], fps: 6, loop: false },
+        walk: { frames: ['skins/blue_bird/walk_01.png', 'skins/blue_bird/walk_02.png'], fps: 10, loop: false }
+      }
+    };
+  }
+
+  /**
+   * 加载并应用皮肤
+   */
+  applySkin(skinId) {
+    const skin = this.skins[skinId];
+    if (!skin) return false;
+
+    this.currentSkin = skin;
+    this._currentBaseUrl = '';
+
+    this.stateMachine.loadFromSkin(skin, this._currentBaseUrl);
+    this.stateMachine.changeState('idle', true);
+
+    try { localStorage.setItem('web_pet_skin', skinId); } catch {}
+    return true;
+  }
+
+  /**
+   * 导入自定义皮肤包
+   * @param {object} config - config.json 内容
+   * @param {string} baseUrl - 帧图片基础URL
+   */
+  importSkin(config, baseUrl = '') {
+    if (!config.name || !config.animations) return false;
+
+    const skinId = 'custom_' + Date.now();
+    this.skins[skinId] = config;
+    this.skins[skinId]._baseUrl = baseUrl;
+
+    return skinId;
+  }
+
+  /**
+   * 通过文件导入皮肤
+   */
+  async importFromFiles(files) {
+    // 解析ZIP或文件夹
+    const config = null;
+    const frameMap = {};
+
+    for (const file of files) {
+      const path = file.webkitRelativePath || file.name;
+      if (path.endsWith('config.json')) {
+        const text = await file.text();
+        config = JSON.parse(text);
+      } else if (path.includes('frames/') && (path.endsWith('.png') || path.endsWith('.gif'))) {
+        const url = URL.createObjectURL(file);
+        const name = path.split('/').pop();
+        frameMap[name] = url;
+      }
+    }
+
+    if (!config) return null;
+
+    // 替换帧文件名为blob URL
+    for (const anim of Object.values(config.animations)) {
+      anim.frames = anim.frames.map(f => frameMap[f] || f);
+    }
+
+    return this.importSkin(config, '');
+  }
+
+  getSkinList() {
+    return Object.entries(this.skins).map(([id, skin]) => ({
+      id, name: skin.name, author: skin.author || ''
+    }));
+  }
+
+  getCurrentSkinId() {
+    try { return localStorage.getItem('web_pet_skin') || 'default_cat'; } catch { return 'default_cat'; }
+  }
+}
+/**
+ * 定时提醒
+ */
+class ReminderTool {
+  constructor() {
+    this.reminders = [];
+    this._timer = null;
+    this._load();
+    this._startCheck();
+  }
+
+  _load() {
+    try {
+      this.reminders = JSON.parse(localStorage.getItem('web_pet_reminders') || '[]');
+    } catch { this.reminders = []; }
+  }
+
+  _save() {
+    try { localStorage.setItem('web_pet_reminders', JSON.stringify(this.reminders)); } catch {}
+  }
+
+  /**
+   * 添加提醒
+   * @param {string} content - 提醒内容
+   * @param {number} triggerAt - 触发时间戳ms
+   * @param {string} repeat - none | daily
+   */
+  add(content, triggerAt, repeat = 'none') {
+    const reminder = {
+      id: Date.now().toString(36),
+      content,
+      triggerAt,
+      repeat,
+      enabled: true
+    };
+    this.reminders.push(reminder);
+    this._save();
+    return reminder.id;
+  }
+
+  remove(id) {
+    this.reminders = this.reminders.filter(r => r.id !== id);
+    this._save();
+  }
+
+  toggle(id) {
+    const r = this.reminders.find(r => r.id === id);
+    if (r) { r.enabled = !r.enabled; this._save(); }
+  }
+
+  getAll() {
+    return [...this.reminders];
+  }
+
+  _startCheck() {
+    this._timer = setInterval(() => {
+      const now = Date.now();
+      for (const r of this.reminders) {
+        if (!r.enabled) continue;
+        if (now >= r.triggerAt) {
+          this._trigger(r);
+          if (r.repeat === 'daily') {
+            r.triggerAt += 86400000;
+          } else {
+            r.enabled = false;
+          }
+        }
+      }
+      this._save();
+    }, 10000); // 每10秒检查
+  }
+
+  _trigger(reminder) {
+    if (this.onTrigger) {
+      this.onTrigger(reminder);
+    }
+  }
+
+  destroy() {
+    clearInterval(this._timer);
+  }
+}
+/**
+ * 整点报时
+ */
+class HourlyTool {
+  constructor() {
+    this.enabled = true;
+    this.silentStart = 23; // 静默开始时间（24小时制）
+    this.silentEnd = 7;    // 静默结束时间
+    this._timer = null;
+    this._lastHour = -1;
+
+    this._load();
+    this._startCheck();
+  }
+
+  _load() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('web_pet_hourly') || '{}');
+      this.enabled = cfg.enabled !== false;
+      this.silentStart = cfg.silentStart ?? 23;
+      this.silentEnd = cfg.silentEnd ?? 7;
+    } catch {}
+  }
+
+  _save() {
+    try {
+      localStorage.setItem('web_pet_hourly', JSON.stringify({
+        enabled: this.enabled,
+        silentStart: this.silentStart,
+        silentEnd: this.silentEnd
+      }));
+    } catch {}
+  }
+
+  setEnabled(v) { this.enabled = v; this._save(); }
+  setSilentRange(start, end) { this.silentStart = start; this.silentEnd = end; this._save(); }
+
+  _startCheck() {
+    this._timer = setInterval(() => {
+      if (!this.enabled) return;
+      const now = new Date();
+      const hour = now.getHours();
+
+      if (hour === this._lastHour) return;
+      this._lastHour = hour;
+
+      // 静默时段检查
+      if (this.silentStart > this.silentEnd) {
+        if (hour >= this.silentStart || hour < this.silentEnd) return;
+      } else {
+        if (hour >= this.silentStart && hour < this.silentEnd) return;
+      }
+
+      if (this.onChime) {
+        this.onChime(hour);
+      }
+    }, 30000); // 每30秒检查
+  }
+
+  destroy() {
+    clearInterval(this._timer);
+  }
+}
+/**
+ * 快捷便签
+ */
+class NotepadTool {
+  constructor() {
+    this.notes = [];
+    this._load();
+  }
+
+  _load() {
+    try { this.notes = JSON.parse(localStorage.getItem('web_pet_notes') || '[]'); } catch { this.notes = []; }
+  }
+
+  _save() {
+    try { localStorage.setItem('web_pet_notes', JSON.stringify(this.notes)); } catch {}
+  }
+
+  add(text, pinned = false) {
+    const note = { id: Date.now().toString(36), text, pinned, done: false, createdAt: Date.now() };
+    this.notes.unshift(note);
+    this._save();
+    return note.id;
+  }
+
+  remove(id) {
+    this.notes = this.notes.filter(n => n.id !== id);
+    this._save();
+  }
+
+  toggleDone(id) {
+    const n = this.notes.find(n => n.id === id);
+    if (n) { n.done = !n.done; this._save(); }
+  }
+
+  togglePin(id) {
+    const n = this.notes.find(n => n.id === id);
+    if (n) { n.pinned = !n.pinned; this._save(); }
+  }
+
+  edit(id, text) {
+    const n = this.notes.find(n => n.id === id);
+    if (n) { n.text = text; this._save(); }
+  }
+
+  getAll() { return [...this.notes]; }
+  getPinned() { return this.notes.filter(n => n.pinned && !n.done); }
+  clear() { this.notes = []; this._save(); }
+}
+/**
+ * 右键快捷菜单
+ */
+class ContextMenu {
+  constructor() {
+    this.el = null;
+    this._init();
+  }
+
+  _init() {
+    this.el = document.createElement('div');
+    this.el.className = 'web-pet-context-menu';
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      zIndex: '2147483647',
+      background: '#fff',
+      borderRadius: '10px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      padding: '6px 0',
+      minWidth: '150px',
+      display: 'none',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '13px'
+    });
+    document.body.appendChild(this.el);
+
+    // 点击外部关闭
+    document.addEventListener('click', () => this.hide());
+    document.addEventListener('contextmenu', () => this.hide());
+  }
+
+  show(x, y, items) {
+    this.el.innerHTML = '';
+    items.forEach(item => {
+      if (item.divider) {
+        const div = document.createElement('div');
+        Object.assign(div.style, { height: '1px', background: '#eee', margin: '4px 0' });
+        this.el.appendChild(div);
+        return;
+      }
+      const row = document.createElement('div');
+      row.textContent = item.label;
+      Object.assign(row.style, {
+        padding: '8px 16px',
+        cursor: 'pointer',
+        transition: 'background 0.15s'
+      });
+      row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hide();
+        if (item.action) item.action();
+      });
+      this.el.appendChild(row);
+    });
+
+    // 定位
+    const maxX = window.innerWidth - 160;
+    const maxY = window.innerHeight - this.el.children.length * 36;
+    this.el.style.left = Math.min(x, maxX) + 'px';
+    this.el.style.top = Math.min(y, maxY) + 'px';
+    this.el.style.display = 'block';
+  }
+
+  hide() {
+    this.el.style.display = 'none';
+  }
+
+  destroy() {
+    this.el?.remove();
+  }
+}
+/**
+ * 设置面板 - 可视化配置界面
+ */
+class SettingsPanel {
+  constructor(options = {}) {
+    this.el = null;
+    this.options = options;
+    this._visible = false;
+    this._init();
+  }
+
+  _init() {
+    this.el = document.createElement('div');
+    this.el.className = 'web-pet-settings';
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      top: '50%', left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: '360px', maxWidth: '90vw',
+      maxHeight: '80vh',
+      background: '#fff',
+      borderRadius: '16px',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+      zIndex: '2147483647',
+      display: 'none',
+      overflow: 'hidden',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    });
+
+    // 遮罩
+    this._overlay = document.createElement('div');
+    Object.assign(this._overlay.style, {
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.3)', zIndex: '2147483646',
+      display: 'none'
+    });
+    this._overlay.addEventListener('click', () => this.hide());
+    document.body.appendChild(this._overlay);
+
+    document.body.appendChild(this.el);
+  }
+
+  show() {
+    this._render();
+    this.el.style.display = 'block';
+    this._overlay.style.display = 'block';
+    this._visible = true;
+  }
+
+  hide() {
+    this.el.style.display = 'none';
+    this._overlay.style.display = 'none';
+    this._visible = false;
+  }
+
+  toggle() {
+    this._visible ? this.hide() : this.show();
+  }
+
+  _render() {
+    const cfg = this.options.getConfig?.() || {};
+
+    this.el.innerHTML = `
+      <div style="padding:20px;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="margin:0;font-size:16px">⚙️ 设置</h3>
+          <span style="cursor:pointer;font-size:20px;color:#999" id="sp-close">✕</span>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-title">🎨 显示</div>
+          <div class="sp-row">
+            <span>大小</span>
+            <input type="range" id="sp-scale" min="20" max="200" value="${Math.round((cfg.scale||1)*100)}">
+            <span id="sp-scale-val">${Math.round((cfg.scale||1)*100)}%</span>
+          </div>
+          <div class="sp-row">
+            <span>透明度</span>
+            <input type="range" id="sp-opacity" min="20" max="100" value="${Math.round((cfg.opacity||1)*100)}">
+            <span id="sp-opacity-val">${Math.round((cfg.opacity||1)*100)}%</span>
+          </div>
+          <div class="sp-row">
+            <span>边缘吸附</span>
+            <input type="checkbox" id="sp-edge-snap" ${cfg.edgeSnap !== false ? 'checked' : ''}>
+          </div>
+          <div class="sp-row">
+            <span>闲置小动作</span>
+            <input type="checkbox" id="sp-idle" ${cfg.idleEnabled !== false ? 'checked' : ''}>
+          </div>
+          <div class="sp-row">
+            <span>闲置间隔(秒)</span>
+            <input type="number" id="sp-idle-interval" min="5" max="120" value="${Math.round((cfg.idleInterval||8000)/1000)}" style="width:60px">
+          </div>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-title">🔔 提醒</div>
+          <div class="sp-row">
+            <span>整点报时</span>
+            <input type="checkbox" id="sp-hourly" ${cfg.hourlyEnabled !== false ? 'checked' : ''}>
+          </div>
+          <div class="sp-row">
+            <span>静默时段</span>
+            <span>${cfg.silentStart||23}:00 - ${cfg.silentEnd||7}:00</span>
+          </div>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-title">🐾 皮肤</div>
+          <div id="sp-skin-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+
+        <div class="sp-section">
+          <div class="sp-title">💾 数据</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sp-btn" id="sp-export">导出配置</button>
+            <button class="sp-btn" id="sp-import">导入配置</button>
+            <button class="sp-btn sp-btn-danger" id="sp-reset">重置数据</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 注入样式
+    if (!document.getElementById('sp-styles')) {
+      const style = document.createElement('style');
+      style.id = 'sp-styles';
+      style.textContent = `
+        .sp-section { margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #f0f0f0; }
+        .sp-title { font-weight:600;font-size:14px;margin-bottom:10px; }
+        .sp-row { display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:13px; }
+        .sp-row input[type=range] { flex:1;margin:0 10px; }
+        .sp-btn { padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:12px; }
+        .sp-btn:hover { background:#f5f5f5; }
+        .sp-btn-danger { color:#FF4D4F;border-color:#FFCCC7; }
+        .sp-btn-danger:hover { background #FFF1F0; }
+        .sp-skin-item { padding:6px 12px;border:2px solid #eee;border-radius:8px;cursor:pointer;font-size:12px; }
+        .sp-skin-item.active { border-color:#FF6B81;background:#FFE8E8; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    this._bindEvents(cfg);
+  }
+
+  _bindEvents(cfg) {
+    const $ = id => this.el.querySelector('#' + id);
+
+    $('sp-close').onclick = () => this.hide();
+
+    $('sp-scale').oninput = (e) => {
+      const v = e.target.value;
+      $('sp-scale-val').textContent = v + '%';
+      this.options.onScaleChange?.(v / 100);
+    };
+
+    $('sp-opacity').oninput = (e) => {
+      const v = e.target.value;
+      $('sp-opacity-val').textContent = v + '%';
+      this.options.onOpacityChange?.(v / 100);
+    };
+
+    $('sp-edge-snap').onchange = (e) => this.options.onEdgeSnapChange?.(e.target.checked);
+    $('sp-idle').onchange = (e) => this.options.onIdleEnabledChange?.(e.target.checked);
+    $('sp-idle-interval').onchange = (e) => this.options.onIdleIntervalChange?.(e.target.value * 1000);
+    $('sp-hourly').onchange = (e) => this.options.onHourlyChange?.(e.target.checked);
+
+    // 皮肤列表
+    const skinList = $('sp-skin-list');
+    const skins = this.options.getSkins?.() || [];
+    const currentId = this.options.getCurrentSkinId?.();
+    skins.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'sp-skin-item' + (s.id === currentId ? ' active' : '');
+      item.textContent = s.name;
+      item.onclick = () => this.options.onSkinChange?.(s.id);
+      skinList.appendChild(item);
+    });
+
+    // 数据操作
+    $('sp-export').onclick = () => this.options.onExport?.();
+    $('sp-import').onclick = () => this.options.onImport?.();
+    $('sp-reset').onclick = () => {
+      if (confirm('确定要重置所有数据吗？')) this.options.onReset?.();
+    };
+  }
+
+  destroy() {
+    this.el?.remove();
+    this._overlay?.remove();
+  }
+}
+/**
+ * Web悬浮桌面宠物 - 主入口
+ * 一行代码引入即可运行
+ */
+class WebPet {
+  constructor(options = {}) {
+    this.options = Object.assign({
+      size: 100,
+      scale: 1.0,
+      opacity: 1.0,
+      edgeSnap: true,
+      skin: 'default_cat',
+      idleEnabled: true,
+      idleInterval: 8000,
+      hourlyEnabled: true,
+      silentStart: 23,
+      silentEnd: 7
+    }, options);
+
+    this._loadConfig();
+    this._init();
+  }
+
+  _loadConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('web_pet_config') || '{}');
+      Object.assign(this.options, saved);
+    } catch {}
+  }
+
+  _saveConfig() {
+    try {
+      const cfg = {
+        scale: this.options.scale,
+        opacity: this.options.opacity,
+        edgeSnap: this.options.edgeSnap,
+        skin: this.options.skin,
+        idleEnabled: this.options.idleEnabled,
+        idleInterval: this.options.idleInterval,
+        hourlyEnabled: this.options.hourlyEnabled,
+        silentStart: this.options.silentStart,
+        silentEnd: this.options.silentEnd
+      };
+      localStorage.setItem('web_pet_config', JSON.stringify(cfg));
+    } catch {}
+  }
+
+  _init() {
+    // 1. 容器
+    this.container = new PetContainer({
+      size: this.options.size,
+      scale: this.options.scale,
+      opacity: this.options.opacity,
+      edgeSnap: this.options.edgeSnap
+    });
+    this.container.loadPosition();
+
+    // 2. 动画器
+    this.animator = new PetAnimator(this.container);
+
+    // 3. 状态机
+    this.stateMachine = new PetStateMachine(this.animator);
+    this.stateMachine.setIdleEnabled(this.options.idleEnabled);
+    this.stateMachine.setIdleInterval(this.options.idleInterval);
+    this.stateMachine.onStateChange = (state) => {
+      this.plugins.trigger('state_change', { state });
+    };
+
+    // 4. 皮肤管理
+    this.skinManager = new SkinManager(this.stateMachine);
+
+    // 5. 气泡系统
+    this.bubble = new BubbleSystem(this.container);
+
+    // 6. 鼠标交互
+    this.mouse = new MouseHandler(this.container, this.stateMachine);
+    this.mouse.onClick = () => this.plugins.trigger('click');
+    this.mouse.onHover = () => this.plugins.trigger('hover');
+    this.mouse.onDoubleClick = () => this.settings.toggle();
+    this.mouse.onContextMenu = (e) => this._showContextMenu(e);
+
+    // 7. 插件系统
+    this.plugins = new PluginSystem();
+    this._registerBuiltinPlugins();
+
+    // 8. 工具
+    this.reminder = new ReminderTool();
+    this.reminder.onTrigger = (r) => {
+      this.bubble.show('⏰ ' + r.content, 5000, 'reminder');
+      this.stateMachine.changeState('happy');
+    };
+
+    this.hourly = new HourlyTool();
+    this.hourly.enabled = this.options.hourlyEnabled;
+    this.hourly.silentStart = this.options.silentStart;
+    this.hourly.silentEnd = this.options.silentEnd;
+    this.hourly.onChime = (hour) => {
+      const texts = [
+        `现在是 ${hour}:00`, `${hour}点了~`,
+        hour < 12 ? '上午好！' : hour < 18 ? '下午好！' : '晚上好！'
+      ];
+      this.bubble.show(texts[Math.floor(Math.random() * texts.length)], 4000, 'hourly');
+    };
+
+    this.notepad = new NotepadTool();
+
+    // 9. 设置面板
+    this.settings = new SettingsPanel({
+      getConfig: () => this.options,
+      getSkins: () => this.skinManager.getSkinList(),
+      getCurrentSkinId: () => this.options.skin,
+      onScaleChange: (v) => { this.options.scale = v; this.container.setScale(v); this._saveConfig(); },
+      onOpacityChange: (v) => { this.options.opacity = v; this.container.setOpacity(v); this._saveConfig(); },
+      onEdgeSnapChange: (v) => { this.options.edgeSnap = v; this.container.edgeSnap = v; this._saveConfig(); },
+      onIdleEnabledChange: (v) => { this.options.idleEnabled = v; this.stateMachine.setIdleEnabled(v); this._saveConfig(); },
+      onIdleIntervalChange: (v) => { this.options.idleInterval = v; this.stateMachine.setIdleInterval(v); this._saveConfig(); },
+      onHourlyChange: (v) => { this.options.hourlyEnabled = v; this.hourly.setEnabled(v); this._saveConfig(); },
+      onSkinChange: (id) => { this.options.skin = id; this.skinManager.applySkin(id); this._saveConfig(); this.settings._render(); },
+      onExport: () => this._exportData(),
+      onImport: () => this._importData(),
+      onReset: () => this._resetData()
+    });
+
+    // 10. 注入API给插件
+    this.plugins.setAPI({
+      showBubble: (text, dur) => this.bubble.show(text, dur),
+      changeState: (state) => this.stateMachine.changeState(state),
+      getContainer: () => this.container
+    });
+
+    // 11. 加载皮肤并启动
+    const skinId = this.options.skin || 'default_cat';
+    this.skinManager.applySkin(skinId);
+    this.stateMachine.startIdleScheduler();
+
+    // 检查是否有常驻便签
+    this._showPinnedNote();
+
+    // 全屏检测
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) this.container.hide();
+      else this.container.show();
+    });
+
+    console.log('[WebPet] 🐱 桌面宠物已启动！');
+  }
+
+  _registerBuiltinPlugins() {
+    for (const plugin of Object.values(BuiltInPlugins)) {
+      this.plugins.register({ ...plugin });
+    }
+  }
+
+  _showContextMenu(e) {
+    if (!this._contextMenu) this._contextMenu = new ContextMenu();
+    this._contextMenu.show(e.clientX, e.clientY, [
+      { label: '👁️ 显示/隐藏', action: () => this.container.toggle() },
+      { label: '📍 重置位置', action: () => this.container.resetPosition() },
+      { divider: true },
+      { label: '💬 随机语录', action: () => this.bubble.show(this.bubble.getRandomQuote('click')) },
+      { label: '📝 新建便签', action: () => this._quickNote() },
+      { label: '⏰ 新建提醒', action: () => this._quickReminder() },
+      { divider: true },
+      { label: '⚙️ 设置', action: () => this.settings.show() }
+    ]);
+  }
+
+  _quickNote() {
+    const text = prompt('输入便签内容：');
+    if (text) {
+      this.notepad.add(text);
+      this.bubble.show('📝 已保存便签', 2000);
+    }
+  }
+
+  _quickReminder() {
+    const text = prompt('提醒内容：');
+    if (!text) return;
+    const minutes = prompt('多少分钟后提醒？', '30');
+    if (minutes && !isNaN(minutes)) {
+      this.reminder.add(text, Date.now() + Number(minutes) * 60000);
+      this.bubble.show(`⏰ ${minutes}分钟后提醒`, 2000);
+    }
+  }
+
+  _showPinnedNote() {
+    const pinned = this.notepad.getPinned();
+    if (pinned.length > 0) {
+      setTimeout(() => this.bubble.show('📝 ' + pinned[0].text, 4000), 2000);
+    }
+  }
+
+  _exportData() {
+    const data = {
+      config: JSON.parse(localStorage.getItem('web_pet_config') || '{}'),
+      reminders: JSON.parse(localStorage.getItem('web_pet_reminders') || '[]'),
+      notes: JSON.parse(localStorage.getItem('web_pet_notes') || '[]'),
+      quotes: this.bubble.getAllQuotes(),
+      exportTime: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'web-pet-backup.json';
+    a.click();
+  }
+
+  _importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.config) localStorage.setItem('web_pet_config', JSON.stringify(data.config));
+        if (data.reminders) localStorage.setItem('web_pet_reminders', JSON.stringify(data.reminders));
+        if (data.notes) localStorage.setItem('web_pet_notes', JSON.stringify(data.notes));
+        alert('导入成功，刷新页面生效');
+      } catch { alert('导入失败，文件格式错误'); }
+    };
+    input.click();
+  }
+
+  _resetData() {
+    localStorage.removeItem('web_pet_config');
+    localStorage.removeItem('web_pet_position');
+    localStorage.removeItem('web_pet_skin');
+    localStorage.removeItem('web_pet_reminders');
+    localStorage.removeItem('web_pet_notes');
+    localStorage.removeItem('web_pet_hourly');
+    location.reload();
+  }
+
+  // === 公开API ===
+  show() { this.container.show(); }
+  hide() { this.container.hide(); }
+  toggle() { this.container.toggle(); }
+  say(text, duration) { this.bubble.show(text, duration); }
+  setSkin(id) { this.options.skin = id; this.skinManager.applySkin(id); this._saveConfig(); }
+
+  destroy() {
+    this.container.destroy();
+    this.animator.destroy();
+    this.stateMachine.destroy();
+    this.bubble.destroy();
+    this.mouse.destroy();
+    this.reminder.destroy();
+    this.hourly.destroy();
+    this.settings.destroy();
+    this._contextMenu?.destroy();
+  }
+}
+
+// 自动初始化
+if (typeof window !== 'undefined') {
+  window.WebPet = WebPet;
+}
