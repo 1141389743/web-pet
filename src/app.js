@@ -207,6 +207,9 @@ class WebPet {
 
     // 提醒列表组件（右上角，有提醒时显示，带数量徽章）
     this.reminderWidget = new ReminderWidget(this.reminder);
+    this.reminderWidget.onVisibilityChange = (height) => {
+      this.weatherWidget?.setTopOffset(12 + height);
+    };
 
     // 检查是否有常驻便签
     this._showPinnedNote();

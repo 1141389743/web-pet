@@ -2244,7 +2244,14 @@ class ReminderWidget {
     badge.textContent = active.length;
 
     // 有提醒才显示组件
-    this.el.style.display = active.length > 0 ? 'block' : 'none';
+    const wasVisible = this.el.style.display !== 'none';
+    const nowVisible = active.length > 0;
+    this.el.style.display = nowVisible ? 'block' : 'none';
+
+    // 通知外部组件位置变化
+    if (wasVisible !== nowVisible && this.onVisibilityChange) {
+      this.onVisibilityChange(nowVisible ? this.getHeight() : 0);
+    }
 
     if (active.length === 0) {
       scroll.innerHTML = '';
@@ -2956,7 +2963,7 @@ class WeatherWidget {
     this._hideTimer = null;
     this._tickFrame = null;
     this._shownAt = null;
-    this.DISPLAY_MS = 60000; // 显示 1 分钟
+    this.DISPLAY_MS = 10000; // 显示 10 秒
     this._init();
   }
 
@@ -3346,6 +3353,9 @@ class WebPet {
 
     // 提醒列表组件（右上角，有提醒时显示，带数量徽章）
     this.reminderWidget = new ReminderWidget(this.reminder);
+    this.reminderWidget.onVisibilityChange = (height) => {
+      this.weatherWidget?.setTopOffset(12 + height);
+    };
 
     // 检查是否有常驻便签
     this._showPinnedNote();

@@ -98,7 +98,14 @@ class ReminderWidget {
     badge.textContent = active.length;
 
     // 有提醒才显示组件
-    this.el.style.display = active.length > 0 ? 'block' : 'none';
+    const wasVisible = this.el.style.display !== 'none';
+    const nowVisible = active.length > 0;
+    this.el.style.display = nowVisible ? 'block' : 'none';
+
+    // 通知外部组件位置变化
+    if (wasVisible !== nowVisible && this.onVisibilityChange) {
+      this.onVisibilityChange(nowVisible ? this.getHeight() : 0);
+    }
 
     if (active.length === 0) {
       scroll.innerHTML = '';

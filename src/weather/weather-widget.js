@@ -8,7 +8,7 @@ class WeatherWidget {
     this._hideTimer = null;
     this._tickFrame = null;
     this._shownAt = null;
-    this.DISPLAY_MS = 60000; // 显示 1 分钟
+    this.DISPLAY_MS = 10000; // 显示 10 秒
     this._init();
   }
 
