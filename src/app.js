@@ -193,6 +193,9 @@ class WebPet {
     // 迷你游戏
     this.games = new MiniGames(this.bubble, this.container);
 
+    // 天气系统
+    this.weather = new WeatherSystem(this.container, this.bubble);
+
     // 检查是否有常驻便签
     this._showPinnedNote();
 
@@ -250,6 +253,11 @@ class WebPet {
       { label: '  🔮 今日运势', action: () => this.games.fortune() },
       { label: '  🃏 今日一卡', action: () => this.games.drawCard() },
       { divider: true },
+      // 天气
+      { label: '🌤️ 天气', isTitle: true },
+      { label: '  ' + (this.weather?.getWeatherInfo() || '获取中...'), action: () => this.weather?._fetchWeather() },
+      { label: '  📍 切换城市...', action: () => this._setWeatherCity() },
+      { divider: true },
       // 工具
       { label: '👁️ 显示/隐藏', action: () => this.container.toggle() },
       { label: '📍 重置位置', action: () => this.container.resetPosition() },
@@ -286,6 +294,14 @@ class WebPet {
     this.skinManager.applySkin(id);
     this._saveConfig();
     this.bubble.show('🎨 已切换', 1500);
+  }
+
+  _setWeatherCity() {
+    const city = prompt('输入城市名（英文，如 Beijing, Shanghai, Tokyo）：', 'Beijing');
+    if (city) {
+      this.weather.setCity(city);
+      this.bubble.show('📍 城市已设为 ' + city, 2000);
+    }
   }
 
   _showPinnedNote() {
