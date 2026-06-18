@@ -1,4 +1,4 @@
-# Web 悬浮桌面宠物 🐱 v2.3.6
+# Web 悬浮桌面宠物 🐱 v2.3.7
 
 原生 HTML + CSS + JS 实现的轻量悬浮桌面宠物，支持挂件版与浏览器插件版。
 
@@ -97,7 +97,7 @@
 ```
 
 ### 插件版
-1. 下载 `releases/web-pet-extension-v2.3.6.zip` 并解压
+1. 下载 `releases/web-pet-extension-v2.3.7.zip` 并解压
 2. Chrome 打开 `chrome://extensions`
 3. 开启「开发者模式」
 4. 点击「加载已解出的扩展程序」→ 选择解压后的文件夹
@@ -150,9 +150,9 @@ web-pet/
 │   ├── default_cat/
 │   └── blue_bird/
 ├── releases/               # 历史版本扩展包
-│   └── web-pet-extension-v2.3.6.zip
+│   └── web-pet-extension-v2.3.7.zip
 └── extension/              # Chrome 插件版
-    ├── manifest.json       # v2.3.6
+    ├── manifest.json       # v2.3.7
     ├── background.js
     ├── pet-content.js
     ├── pet-core.js         # 打包后的核心代码
@@ -164,6 +164,7 @@ web-pet/
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v2.3.7 | 2026-06-19 | 天气城市和展示状态改用 chrome.storage.local 跨页面持久化，解决重开页面重复弹出和城市重置 |
 | v2.3.6 | 2026-06-19 | 页面加载时不再重复弹出，仅在数据变化时弹出 |
 | v2.3.5 | 2026-06-19 | 提醒卡片和天气卡片均10秒自动收起，点击标题可重新展开 |
 | v2.3.4 | 2026-06-19 | 天气卡片显示改为10秒、修复提醒与天气卡片重叠问题 |

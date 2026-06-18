@@ -75,10 +75,15 @@ class WeatherSystem {
   }
 
   async _detectCity() {
-    // 尝试从localStorage读取用户设置的城市
+    // 尝试从 chrome.storage.local 或 localStorage 读取用户设置的城市
     try {
-      const saved = localStorage.getItem('web_pet_city');
-      if (saved) return saved;
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const data = await chrome.storage.local.get('web_pet_city');
+        if (data.web_pet_city) return data.web_pet_city;
+      } else {
+        const saved = localStorage.getItem('web_pet_city');
+        if (saved) return saved;
+      }
     } catch {}
 
     // 尝试用IP定位
@@ -86,15 +91,25 @@ class WeatherSystem {
       const resp = await fetch('https://ipapi.co/json/');
       const data = await resp.json();
       const city = data.city || 'Beijing';
-      try { localStorage.setItem('web_pet_city', city); } catch {}
+      this._saveCity(city);
       return city;
     } catch {}
 
     return 'Beijing'; // 默认
   }
 
+  _saveCity(city) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ web_pet_city: city });
+      } else {
+        localStorage.setItem('web_pet_city', city);
+      }
+    } catch {}
+  }
+
   setCity(city) {
-    try { localStorage.setItem('web_pet_city', city); } catch {}
+    this._saveCity(city);
     this._fetchWeather();
   }
 

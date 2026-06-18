@@ -2784,10 +2784,15 @@ class WeatherSystem {
   }
 
   async _detectCity() {
-    // 尝试从localStorage读取用户设置的城市
+    // 尝试从 chrome.storage.local 或 localStorage 读取用户设置的城市
     try {
-      const saved = localStorage.getItem('web_pet_city');
-      if (saved) return saved;
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const data = await chrome.storage.local.get('web_pet_city');
+        if (data.web_pet_city) return data.web_pet_city;
+      } else {
+        const saved = localStorage.getItem('web_pet_city');
+        if (saved) return saved;
+      }
     } catch {}
 
     // 尝试用IP定位
@@ -2795,15 +2800,25 @@ class WeatherSystem {
       const resp = await fetch('https://ipapi.co/json/');
       const data = await resp.json();
       const city = data.city || 'Beijing';
-      try { localStorage.setItem('web_pet_city', city); } catch {}
+      this._saveCity(city);
       return city;
     } catch {}
 
     return 'Beijing'; // 默认
   }
 
+  _saveCity(city) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ web_pet_city: city });
+      } else {
+        localStorage.setItem('web_pet_city', city);
+      }
+    } catch {}
+  }
+
   setCity(city) {
-    try { localStorage.setItem('web_pet_city', city); } catch {}
+    this._saveCity(city);
     this._fetchWeather();
   }
 
@@ -3040,8 +3055,10 @@ class WeatherWidget {
     this._tickFrame = null;
     this._shownAt = null;
     this.DISPLAY_MS = 10000; // 显示 10 秒
-    this._lastWeatherKey = ''; // 上次展示的天气摘要，避免重复弹出
+    this._lastWeatherKey = ''; // 上次展示的天气摘要
+    this._ready = false; // 是否已从存储加载
     this._init();
+    this._loadLastKey();
   }
 
   _init() {
@@ -3133,13 +3150,36 @@ class WeatherWidget {
    * 显示天气卡片，1分钟后自动收起
    * @param {Object} weather - { temp, feelsLike, humidity, desc, code, windSpeed, city }
    */
+  async _loadLastKey() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const data = await chrome.storage.local.get('web_pet_last_weather_key');
+        this._lastWeatherKey = data.web_pet_last_weather_key || '';
+      } else {
+        this._lastWeatherKey = localStorage.getItem('web_pet_last_weather_key') || '';
+      }
+    } catch {}
+    this._ready = true;
+  }
+
+  _saveLastKey(key) {
+    this._lastWeatherKey = key;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ web_pet_last_weather_key: key });
+      } else {
+        localStorage.setItem('web_pet_last_weather_key', key);
+      }
+    } catch {}
+  }
+
   show(weather) {
     if (!weather) return;
 
     // 构建天气摘要，数据未变化则不重新弹出
     const key = `${weather.temp}|${weather.desc}|${weather.code}`;
     if (key === this._lastWeatherKey) return;
-    this._lastWeatherKey = key;
+    this._saveLastKey(key);
 
     // 更新内容
     this.el.querySelector('.ww-emoji').textContent = this._emoji(weather.code);
