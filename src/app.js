@@ -190,6 +190,9 @@ class WebPet {
     });
     this.stateMachine.startIdleScheduler();
 
+    // 迷你游戏
+    this.games = new MiniGames(this.bubble, this.container);
+
     // 检查是否有常驻便签
     this._showPinnedNote();
 
@@ -238,6 +241,14 @@ class WebPet {
       { label: '  🦊 狐狸', action: () => this._switchSkin('emoji_fox') },
       { label: '  🐧 企鹅', action: () => this._switchSkin('emoji_penguin') },
       ...customSkins.map(s => ({ label: '  🖼️ ' + s.name, action: () => this._switchSkin(s.id) })),
+      { divider: true },
+      // 小游戏
+      { label: '🎮 小游戏', isTitle: true },
+      { label: '  ✊✌️🖐️ 石头剪刀布', action: () => this.games.rockPaperScissors() },
+      { label: '  🎲 掷骰子', action: () => this.games.rollDice() },
+      { label: '  🔢 猜数字', action: () => this.games.guessNumber() },
+      { label: '  🔮 今日运势', action: () => this.games.fortune() },
+      { label: '  🃏 今日一卡', action: () => this.games.drawCard() },
       { divider: true },
       // 工具
       { label: '👁️ 显示/隐藏', action: () => this.container.toggle() },
