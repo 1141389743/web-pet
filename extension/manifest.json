@@ -2,18 +2,20 @@
   "manifest_version": 3,
   "name": "Web 桌面宠物",
   "version": "1.0.0",
-  "description": "悬浮桌面宠物，陪伴你的每一次网页浏览",
-  "permissions": ["storage", "alarms"],
+  "description": "悬浮桌面宠物，陪伴你的每一次网页浏览 🐱",
+  "permissions": ["storage", "alarms", "activeTab"],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": [
-        "pet-core.js",
-        "pet-content.js"
-      ],
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["pet-core.js", "pet-content.js"],
       "css": ["pet-style.css"],
       "run_at": "document_idle"
     }
