@@ -1,4 +1,4 @@
-# Web 悬浮桌面宠物 🐱 v2.4.0
+# Web 悬浮桌面宠物 🐱 v2.5.1
 
 原生 HTML + CSS + JS 实现的轻量悬浮桌面宠物，支持挂件版与浏览器插件版。
 
@@ -56,6 +56,14 @@
 - 🔮 今日运势：运势指数 + 幸运提示
 - 🃏 今日一卡：塔罗牌抽卡
 
+### 💬 AI 聊天
+- 接入 AI 大模型，让宠物能和你对话
+- 内置 9 家厂商：OpenAI、DeepSeek、通义千问、智谱、Moonshot、百川、讯飞星火、Ollama、自定义
+- 选择厂商自动填入 API 地址和模型列表，也可手动填写任意 OpenAI 兼容 API
+- 右键菜单「和宠物聊天」打开对话窗口
+- 对话历史保留，支持清空
+- 宠物气泡同步显示 AI 回复
+
 ### 🌤️ 天气系统
 - 自动IP定位城市，支持手动切换
 - wttr.in 免费API，无需key
@@ -101,7 +109,7 @@
 ```
 
 ### 插件版
-1. 下载 `releases/web-pet-extension-v2.4.0.zip` 并解压
+1. 下载 `releases/web-pet-extension-v2.5.1.zip` 并解压
 2. Chrome 打开 `chrome://extensions`
 3. 开启「开发者模式」
 4. 点击「加载已解出的扩展程序」→ 选择解压后的文件夹
@@ -157,9 +165,9 @@ web-pet/
 │   ├── default_cat/
 │   └── blue_bird/
 ├── releases/               # 历史版本扩展包
-│   └── web-pet-extension-v2.4.0.zip
+│   └── web-pet-extension-v2.5.1.zip
 └── extension/              # Chrome 插件版
-    ├── manifest.json       # v2.4.0
+    ├── manifest.json       # v2.5.1
     ├── background.js
     ├── pet-content.js
     ├── pet-core.js         # 打包后的核心代码
@@ -171,6 +179,8 @@ web-pet/
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v2.5.1 | 2026-06-19 | AI 聊天增加厂商下拉选择，内置 9 家厂商地址和模型列表 |
+| v2.5.0 | 2026-06-19 | 新增 AI 聊天功能，接入 OpenAI 兼容 API |
 | v2.4.0 | 2026-06-19 | 新增4个迷你游戏：21点、记忆翻牌、打地鼠、抛硬币 |
 | v2.3.7 | 2026-06-19 | 天气城市和展示状态改用 chrome.storage.local 跨页面持久化，解决重开页面重复弹出和城市重置 |
 | v2.3.6 | 2026-06-19 | 页面加载时不再重复弹出，仅在数据变化时弹出 |

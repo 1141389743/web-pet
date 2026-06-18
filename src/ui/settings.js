@@ -137,10 +137,26 @@ class SettingsPanel {
 
         <div class="sp-section">
           <div class="sp-title">💬 AI 聊天</div>
-          <div style="font-size:12px;color:#666;margin-bottom:8px">接入 OpenAI 兼容 API，让宠物能和你对话</div>
+          <div style="font-size:12px;color:#666;margin-bottom:8px">接入 AI 大模型，让宠物能和你对话</div>
+          <div class="sp-row">
+            <span>厂商</span>
+            <select id="sp-ai-provider" style="width:170px;padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none;background:#fff">
+              <option value="">-- 选择厂商 --</option>
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="qwen">通义千问</option>
+              <option value="zhipu">智谱 GLM</option>
+              <option value="moonshot">Moonshot (Kimi)</option>
+              <option value="minimax">MiniMax</option>
+              <option value="baichuan">百川</option>
+              <option value="spark">讯飞星火</option>
+              <option value="ollama">Ollama (本地)</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
           <div class="sp-row">
             <span>API 地址</span>
-            <input type="text" id="sp-ai-endpoint" placeholder="https://api.openai.com/v1" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
+            <input type="text" id="sp-ai-endpoint" placeholder="选择厂商自动填入" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
           </div>
           <div class="sp-row">
             <span>API Key</span>
@@ -148,6 +164,7 @@ class SettingsPanel {
           </div>
           <div class="sp-row">
             <span>模型</span>
+            <select id="sp-ai-model-select" style="width:170px;padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none;background:#fff;display:none"></select>
             <input type="text" id="sp-ai-model" placeholder="gpt-3.5-turbo" style="width:170px;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none">
           </div>
           <div class="sp-row">
@@ -256,23 +273,110 @@ class SettingsPanel {
       if (confirm('确定要重置所有数据吗？')) this.options.onReset?.();
     };
 
+    // AI 厂商配置表
+    const AI_PROVIDERS = {
+      openai: {
+        name: 'OpenAI',
+        endpoint: 'https://api.openai.com/v1',
+        models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo']
+      },
+      deepseek: {
+        name: 'DeepSeek',
+        endpoint: 'https://api.deepseek.com/v1',
+        models: ['deepseek-chat', 'deepseek-reasoner']
+      },
+      qwen: {
+        name: '通义千问',
+        endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-long']
+      },
+      zhipu: {
+        name: '智谱 GLM',
+        endpoint: 'https://open.bigmodel.cn/api/paas/v4',
+        models: ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-3-turbo']
+      },
+      moonshot: {
+        name: 'Moonshot (Kimi)',
+        endpoint: 'https://api.moonshot.cn/v1',
+        models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k']
+      },
+      minimax: {
+        name: 'MiniMax',
+        endpoint: 'https://api.minimax.chat/v1',
+        models: ['abab6.5-chat', 'abab6.5s-chat', 'abab5.5-chat']
+      },
+      baichuan: {
+        name: '百川',
+        endpoint: 'https://api.baichuan-ai.com/v1',
+        models: ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan2-Turbo']
+      },
+      spark: {
+        name: '讯飞星火',
+        endpoint: 'https://spark-api-open.xf-yun.com/v1',
+        models: ['generalv3.5', 'generalv3', '4.0Ultra']
+      },
+      ollama: {
+        name: 'Ollama (本地)',
+        endpoint: 'http://localhost:11434/v1',
+        models: ['qwen2.5', 'llama3', 'mistral', 'deepseek-r1']
+      }
+    };
+
     // AI 聊天配置
     const chatCfg = this.options.getChatConfig?.() || {};
+    const providerSelect = $('sp-ai-provider');
     const epInput = $('sp-ai-endpoint');
     const keyInput = $('sp-ai-key');
     const modelInput = $('sp-ai-model');
+    const modelSelect = $('sp-ai-model-select');
     const promptInput = $('sp-ai-prompt');
+
+    // 根据已保存的 endpoint 反推厂商
+    let matchedProvider = 'custom';
+    for (const [k, v] of Object.entries(AI_PROVIDERS)) {
+      if (chatCfg.endpoint === v.endpoint) { matchedProvider = k; break; }
+    }
+    if (providerSelect) providerSelect.value = matchedProvider;
     if (epInput) epInput.value = chatCfg.endpoint || '';
     if (keyInput) keyInput.value = chatCfg.apiKey || '';
     if (modelInput) modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
     if (promptInput) promptInput.value = chatCfg.systemPrompt || '';
 
+    // 厂商下拉切换
+    if (providerSelect) {
+      providerSelect.onchange = () => {
+        const key = providerSelect.value;
+        const p = AI_PROVIDERS[key];
+        if (p && key !== 'custom') {
+          epInput.value = p.endpoint;
+          // 显示模型下拉
+          if (modelSelect && p.models) {
+            modelSelect.innerHTML = p.models.map(m => `<option value="${m}">${m}</option>`).join('');
+            modelSelect.style.display = '';
+            modelInput.style.display = 'none';
+            modelInput.value = p.models[0];
+          }
+        } else {
+          if (modelSelect) modelSelect.style.display = 'none';
+          modelInput.style.display = '';
+        }
+      };
+      // 触发一次以初始化模型下拉
+      providerSelect.onchange();
+    }
+
+    // 模型下拉同步到隐藏的 model input
+    if (modelSelect) {
+      modelSelect.onchange = () => { modelInput.value = modelSelect.value; };
+    }
+
     const saveBtn = $('sp-ai-save');
     if (saveBtn) saveBtn.onclick = () => {
+      const modelVal = modelSelect?.style.display !== 'none' ? modelSelect?.value : modelInput?.value;
       this.options.onSaveChatConfig?.({
         endpoint: epInput?.value.trim(),
         apiKey: keyInput?.value.trim(),
-        model: modelInput?.value.trim() || 'gpt-3.5-turbo',
+        model: modelVal?.trim() || 'gpt-3.5-turbo',
         systemPrompt: promptInput?.value.trim()
       });
       const status = $('sp-ai-status');
