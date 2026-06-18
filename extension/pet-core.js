@@ -1111,13 +1111,26 @@ class SkinManager {
         walk: { frames: [imageUrl], fps: 1, loop: false }
       }
     };
-    // 保存图片到localStorage（小图）
-    try {
-      const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
-      customs[skinId] = { name, imageUrl };
-      localStorage.setItem('web_pet_custom_skins', JSON.stringify(customs));
-    } catch {}
+    // 保存到 chrome.storage.local（跨页面同步）
+    this._saveCustomSkin(skinId, { name, imageUrl });
     return skinId;
+  }
+
+  _saveCustomSkin(skinId, data) {
+    // 优先用 chrome.storage.local
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get('custom_skins').then(result => {
+        const customs = result.custom_skins || {};
+        customs[skinId] = data;
+        chrome.storage.local.set({ custom_skins: customs });
+      });
+    } else {
+      try {
+        const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
+        customs[skinId] = data;
+        localStorage.setItem('web_pet_custom_skins', JSON.stringify(customs));
+      } catch {}
+    }
   }
 
   /**
@@ -1146,30 +1159,46 @@ class SkinManager {
   }
 
   /**
-   * 从localStorage加载用户自定义皮肤
+   * 加载用户自定义皮肤（支持chrome.storage.local跨页面同步）
+   * @returns {Promise}
    */
   loadCustomSkins() {
-    try {
-      const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
-      for (const [id, data] of Object.entries(customs)) {
-        if (!this.skins[id] && data.imageUrl) {
-          this.skins[id] = {
-            name: data.name || '自定义',
-            version: '1.0', author: 'user',
-            default_scale: 1.0,
-            hitbox: { x: 10, y: 10, width: 80, height: 80 },
-            animations: {
-              idle: { frames: [data.imageUrl], fps: 1, loop: true },
-              clicked: { frames: [data.imageUrl], fps: 1, loop: false },
-              dragged: { frames: [data.imageUrl], fps: 1, loop: true },
-              happy: { frames: [data.imageUrl], fps: 1, loop: false },
-              idle_action: { frames: [data.imageUrl], fps: 1, loop: false },
-              walk: { frames: [data.imageUrl], fps: 1, loop: false }
-            }
-          };
-        }
+    return new Promise((resolve) => {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get('custom_skins').then(result => {
+          const customs = result.custom_skins || {};
+          this._applyCustomSkins(customs);
+          resolve();
+        }).catch(() => resolve());
+      } else {
+        try {
+          const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
+          this._applyCustomSkins(customs);
+        } catch {}
+        resolve();
       }
-    } catch {}
+    });
+  }
+
+  _applyCustomSkins(customs) {
+    for (const [id, data] of Object.entries(customs)) {
+      if (!this.skins[id] && data.imageUrl) {
+        this.skins[id] = {
+          name: data.name || '自定义',
+          version: '1.0', author: 'user',
+          default_scale: 1.0,
+          hitbox: { x: 10, y: 10, width: 80, height: 80 },
+          animations: {
+            idle: { frames: [data.imageUrl], fps: 1, loop: true },
+            clicked: { frames: [data.imageUrl], fps: 1, loop: false },
+            dragged: { frames: [data.imageUrl], fps: 1, loop: true },
+            happy: { frames: [data.imageUrl], fps: 1, loop: false },
+            idle_action: { frames: [data.imageUrl], fps: 1, loop: false },
+            walk: { frames: [data.imageUrl], fps: 1, loop: false }
+          }
+        };
+      }
+    }
   }
 
   /**
@@ -1177,11 +1206,19 @@ class SkinManager {
    */
   removeCustomSkin(skinId) {
     delete this.skins[skinId];
-    try {
-      const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
-      delete customs[skinId];
-      localStorage.setItem('web_pet_custom_skins', JSON.stringify(customs));
-    } catch {}
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get('custom_skins').then(result => {
+        const customs = result.custom_skins || {};
+        delete customs[skinId];
+        chrome.storage.local.set({ custom_skins: customs });
+      });
+    } else {
+      try {
+        const customs = JSON.parse(localStorage.getItem('web_pet_custom_skins') || '{}');
+        delete customs[skinId];
+        localStorage.setItem('web_pet_custom_skins', JSON.stringify(customs));
+      } catch {}
+    }
   }
 }
 /**
@@ -1770,10 +1807,8 @@ class WebPet {
 
     this.notepad = new NotepadTool();
 
-    // 9. 加载自定义皮肤
-    this.skinManager.loadCustomSkins();
-
-    // 10. 设置面板
+    // 9. 设置面板
+    // （自定义皮肤在_init末尾异步加载）
     this.settings = new SettingsPanel({
       getConfig: () => this.options,
       getSkins: () => this.skinManager.getSkinList(),
@@ -1799,9 +1834,11 @@ class WebPet {
       getContainer: () => this.container
     });
 
-    // 11. 加载皮肤并启动
-    const skinId = this.options.skin || 'default_cat';
-    this.skinManager.applySkin(skinId);
+    // 异步加载自定义皮肤，然后应用保存的皮肤
+    const savedSkin = this.options.skin || 'emoji_cat';
+    this.skinManager.loadCustomSkins().then(() => {
+      this.skinManager.applySkin(savedSkin);
+    });
     this.stateMachine.startIdleScheduler();
 
     // 检查是否有常驻便签

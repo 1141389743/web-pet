@@ -104,6 +104,14 @@
           break;
         case 'CHANGE_SKIN':
           pet.setSkin(msg.skinId);
+          // 保存到chrome.storage.local
+          try {
+            chrome.storage.local.get('config').then(({ config }) => {
+              const cfg = config || {};
+              cfg.skin = msg.skinId;
+              chrome.storage.local.set({ config: cfg });
+            });
+          } catch {}
           sendResponse({ ok: true });
           break;
         case 'GET_STATUS':

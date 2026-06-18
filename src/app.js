@@ -104,10 +104,8 @@ class WebPet {
 
     this.notepad = new NotepadTool();
 
-    // 9. 加载自定义皮肤
-    this.skinManager.loadCustomSkins();
-
-    // 10. 设置面板
+    // 9. 设置面板
+    // （自定义皮肤在_init末尾异步加载）
     this.settings = new SettingsPanel({
       getConfig: () => this.options,
       getSkins: () => this.skinManager.getSkinList(),
@@ -133,9 +131,11 @@ class WebPet {
       getContainer: () => this.container
     });
 
-    // 11. 加载皮肤并启动
-    const skinId = this.options.skin || 'default_cat';
-    this.skinManager.applySkin(skinId);
+    // 异步加载自定义皮肤，然后应用保存的皮肤
+    const savedSkin = this.options.skin || 'emoji_cat';
+    this.skinManager.loadCustomSkins().then(() => {
+      this.skinManager.applySkin(savedSkin);
+    });
     this.stateMachine.startIdleScheduler();
 
     // 检查是否有常驻便签
