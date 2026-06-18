@@ -64,6 +64,11 @@ class WeatherSystem {
 
       this._applyWeatherEffect();
       console.log('[WebPet] 天气更新:', this.currentWeather.desc, this.currentWeather.temp + '°C');
+
+      // 通知外部（天气卡片）
+      if (this.onWeatherUpdate) {
+        this.onWeatherUpdate(this.currentWeather);
+      }
     } catch (e) {
       console.warn('[WebPet] 天气获取失败:', e);
     }

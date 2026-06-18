@@ -1362,9 +1362,18 @@ class ReminderTool {
     return [...this.reminders];
   }
 
+  getActive() {
+    return this.reminders.filter(r => r.enabled);
+  }
+
+  getActiveCount() {
+    return this.reminders.filter(r => r.enabled).length;
+  }
+
   _startCheck() {
     this._timer = setInterval(() => {
       const now = Date.now();
+      const toRemove = [];
       for (const r of this.reminders) {
         if (!r.enabled) continue;
         if (now >= r.triggerAt) {
@@ -1373,10 +1382,13 @@ class ReminderTool {
             r.triggerAt += 86400000;
           } else {
             r.enabled = false;
+            toRemove.push(r.id);
           }
         }
       }
-      this._save();
+      // 延迟移除，避免遍历时修改数组
+      for (const id of toRemove) this.remove(id);
+      if (toRemove.length === 0) this._save();
     }, 10000); // 每10秒检查
   }
 
@@ -2131,6 +2143,180 @@ class SettingsPanel {
   }
 }
 /**
+ * 提醒列表浮动组件 - 右上角显示，带数量徽章
+ * 触发后自动从列表移除
+ */
+class ReminderWidget {
+  constructor(reminderTool) {
+    this.reminder = reminderTool;
+    this.el = null;
+    this.badgeEl = null;
+    this.listEl = null;
+    this._collapsed = false;
+    this._init();
+  }
+
+  _init() {
+    this.el = document.createElement('div');
+    this.el.className = 'web-pet-reminder-widget';
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      top: '12px',
+      right: '16px',
+      width: '280px',
+      zIndex: '2147483640',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+      fontSize: '13px',
+      display: 'none', // 有提醒时才显示
+      pointerEvents: 'auto'
+    });
+
+    this.el.innerHTML = `
+      <div class="rw-card" style="
+        background: rgba(22,22,30,0.94);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+        overflow: hidden;
+        color: #e0e0e0;
+        transition: opacity 0.35s, transform 0.35s, max-height 0.4s;
+      ">
+        <div class="rw-header" style="
+          display:flex; align-items:center; justify-content:space-between;
+          padding:10px 14px; cursor:pointer; user-select:none;
+        ">
+          <div style="display:flex;align-items:center;gap:7px;font-weight:600;font-size:13px">
+            <span style="font-size:15px">⏰</span>
+            <span>提醒</span>
+            <span class="rw-badge" style="
+              display:inline-flex;align-items:center;justify-content:center;
+              min-width:20px;height:20px;padding:0 6px;border-radius:10px;
+              font-size:11px;font-weight:700;color:#fff;background:#5b6eea;
+            ">0</span>
+          </div>
+          <span class="rw-chevron" style="font-size:10px;color:#666;transition:transform 0.25s">▼</span>
+        </div>
+        <div class="rw-body" style="max-height:300px;overflow:hidden;transition:max-height 0.35s">
+          <div class="rw-scroll" style="max-height:260px;overflow-y:auto;padding-bottom:4px"></div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(this.el);
+
+    // 折叠切换
+    const header = this.el.querySelector('.rw-header');
+    header.addEventListener('click', () => this._toggle());
+
+    // 定时刷新列表
+    setInterval(() => this.refresh(), 10000);
+    this.refresh();
+
+    // 通知天气组件调整位置
+    window.addEventListener('web-pet-reminder-widget-resize', () => {});
+  }
+
+  /**
+   * 获取组件当前高度，供天气组件定位参考
+   */
+  getHeight() {
+    if (!this.el || this.el.style.display === 'none') return 0;
+    return this.el.offsetHeight + 8; // 8px gap
+  }
+  }
+
+  _toggle() {
+    this._collapsed = !this._collapsed;
+    const body = this.el.querySelector('.rw-body');
+    const chev = this.el.querySelector('.rw-chevron');
+    body.style.maxHeight = this._collapsed ? '0' : '300px';
+    chev.style.transform = this._collapsed ? 'rotate(-90deg)' : '';
+  }
+
+  refresh() {
+    const all = this.reminder.getAll();
+    const active = all.filter(r => r.enabled);
+    const badge = this.el.querySelector('.rw-badge');
+    const scroll = this.el.querySelector('.rw-scroll');
+
+    badge.textContent = active.length;
+
+    // 有提醒才显示组件
+    this.el.style.display = active.length > 0 ? 'block' : 'none';
+
+    if (active.length === 0) {
+      scroll.innerHTML = '';
+      return;
+    }
+
+    scroll.innerHTML = active.map(r => {
+      const remaining = Math.max(0, r.triggerAt - Date.now());
+      const mins = Math.round(remaining / 60000);
+      let timeText;
+      if (mins < 1) timeText = '即将触发';
+      else if (mins < 60) timeText = `剩余 ${mins} 分钟`;
+      else timeText = `剩余 ${Math.round(mins / 60)} 小时`;
+
+      const repeatTag = r.repeat === 'daily'
+        ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(91,110,234,0.18);color:#9fa8da;margin-left:6px">每天</span>'
+        : '';
+
+      return `
+        <div data-id="${r.id}" style="
+          display:flex;align-items:center;padding:9px 14px;gap:10px;
+          border-bottom:1px solid rgba(255,255,255,0.03);
+          transition:background 0.12s;
+        " onmouseenter="this.style.background='rgba(255,255,255,0.025)'" onmouseleave="this.style.background=''">
+          <span style="font-size:18px;flex-shrink:0">${this._emoji(r.content)}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:500;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px">${this._esc(r.content)}${repeatTag}</div>
+            <div style="font-size:11px;color:#777;margin-top:2px">${timeText}</div>
+          </div>
+          <span class="rw-del" data-id="${r.id}" style="
+            padding:3px 8px;border:1px solid rgba(255,77,79,0.3);border-radius:6px;
+            background:rgba(255,77,79,0.08);color:#ff7875;font-size:11px;cursor:pointer;
+            flex-shrink:0;transition:background 0.15s;
+          " onmouseenter="this.style.background='rgba(255,77,79,0.2)'" onmouseleave="this.style.background='rgba(255,77,79,0.08)'">取消</span>
+        </div>
+      `;
+    }).join('');
+
+    // 绑定取消事件
+    scroll.querySelectorAll('.rw-del').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.reminder.remove(btn.dataset.id);
+        this.refresh();
+      });
+    });
+  }
+
+  _emoji(text) {
+    const t = text.toLowerCase();
+    if (/天气|weather/.test(t)) return '🌤️';
+    if (/喝水|水/.test(t)) return '💧';
+    if (/药/.test(t)) return '💊';
+    if (/会议|开会/.test(t)) return '📅';
+    if (/打卡|上班/.test(t)) return '🏢';
+    if (/睡觉|晚安/.test(t)) return '😴';
+    if (/运动|跑步/.test(t)) return '🏃';
+    if (/学习|读书/.test(t)) return '📚';
+    if (/吃|饭/.test(t)) return '🍚';
+    return '⏰';
+  }
+
+  _esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  destroy() {
+    this.el?.remove();
+  }
+}
+/**
  * 迷你游戏模块 - 右键菜单触发
  */
 class MiniGames {
@@ -2503,6 +2689,11 @@ class WeatherSystem {
 
       this._applyWeatherEffect();
       console.log('[WebPet] 天气更新:', this.currentWeather.desc, this.currentWeather.temp + '°C');
+
+      // 通知外部（天气卡片）
+      if (this.onWeatherUpdate) {
+        this.onWeatherUpdate(this.currentWeather);
+      }
     } catch (e) {
       console.warn('[WebPet] 天气获取失败:', e);
     }
@@ -2755,6 +2946,197 @@ class WeatherSystem {
   }
 }
 /**
+ * 天气通知浮动卡片 - 右上角显示，1分钟后自动收起
+ * 每次天气更新时重新弹出
+ */
+class WeatherWidget {
+  constructor() {
+    this.el = null;
+    this._hideTimer = null;
+    this._tickFrame = null;
+    this._shownAt = null;
+    this.DISPLAY_MS = 60000; // 显示 1 分钟
+    this._init();
+  }
+
+  _init() {
+    this.el = document.createElement('div');
+    this.el.className = 'web-pet-weather-widget';
+    Object.assign(this.el.style, {
+      position: 'fixed',
+      top: '12px',
+      right: '16px',
+      width: '280px',
+      zIndex: '2147483639', // 比提醒组件低一级
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+      fontSize: '13px',
+      display: 'none',
+      opacity: '0',
+      transform: 'translateY(-12px)',
+      transition: 'opacity 0.4s ease, transform 0.4s ease',
+      pointerEvents: 'auto'
+    });
+
+    this.el.innerHTML = `
+      <div style="
+        background: rgba(22,22,30,0.94);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+        overflow: hidden;
+        color: #e0e0e0;
+      ">
+        <div class="ww-header" style="
+          display:flex;align-items:center;justify-content:space-between;
+          padding:10px 14px;cursor:pointer;user-select:none;
+        ">
+          <div style="display:flex;align-items:center;gap:7px;font-weight:600;font-size:13px">
+            <span class="ww-pulse" style="
+              width:7px;height:7px;border-radius:50%;background:#43a047;flex-shrink:0;
+              position:relative;
+            "></span>
+            <span>天气</span>
+            <span class="ww-city" style="font-size:11px;color:#666;font-weight:400"></span>
+          </div>
+          <span class="ww-chevron" style="font-size:10px;color:#666;transition:transform 0.25s">▼</span>
+        </div>
+        <div class="ww-body" style="overflow:hidden;transition:max-height 0.35s;max-height:200px">
+          <div style="padding:12px 14px;display:flex;align-items:center;gap:14px">
+            <div class="ww-emoji" style="font-size:36px;flex-shrink:0">🌡️</div>
+            <div style="flex:1">
+              <div class="ww-temp" style="font-size:22px;font-weight:700;color:#f5f5f5">--°C</div>
+              <div class="ww-desc" style="font-size:12px;color:#aaa;margin-top:1px">加载中…</div>
+              <div style="display:flex;gap:10px;margin-top:8px;font-size:11px;color:#777">
+                <span>💧 <span class="ww-hum">--%</span></span>
+                <span>💨 <span class="ww-wind">--km/h</span></span>
+                <span>🌡️ <span class="ww-feel">体感 --°</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="ww-timer" style="text-align:right;font-size:10px;color:#444;padding:4px 14px 8px"></div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(this.el);
+
+    // 折叠
+    const header = this.el.querySelector('.ww-header');
+    header.addEventListener('click', () => this._toggle());
+
+    // 脉冲动画
+    this._injectPulseStyle();
+  }
+
+  _toggle() {
+    const body = this.el.querySelector('.ww-body');
+    const chev = this.el.querySelector('.ww-chevron');
+    const collapsed = body.style.maxHeight === '0px';
+    body.style.maxHeight = collapsed ? '200px' : '0';
+    chev.style.transform = collapsed ? '' : 'rotate(-90deg)';
+  }
+
+  /**
+   * 设置顶部偏移（避免与提醒组件重叠）
+   */
+  setTopOffset(px) {
+    this.el.style.top = px + 'px';
+  }
+
+  /**
+   * 显示天气卡片，1分钟后自动收起
+   * @param {Object} weather - { temp, feelsLike, humidity, desc, code, windSpeed, city }
+   */
+  show(weather) {
+    if (!weather) return;
+
+    // 更新内容
+    this.el.querySelector('.ww-emoji').textContent = this._emoji(weather.code);
+    this.el.querySelector('.ww-temp').textContent = weather.temp + '°C';
+    this.el.querySelector('.ww-desc').textContent = weather.desc;
+    this.el.querySelector('.ww-hum').textContent = weather.humidity + '%';
+    this.el.querySelector('.ww-wind').textContent = weather.windSpeed + 'km/h';
+    this.el.querySelector('.ww-feel').textContent = '体感 ' + weather.feelsLike + '°';
+    this.el.querySelector('.ww-city').textContent = weather.city || '';
+
+    // 显示
+    this.el.style.display = 'block';
+    requestAnimationFrame(() => {
+      this.el.style.opacity = '1';
+      this.el.style.transform = 'translateY(0)';
+    });
+
+    // 计时
+    this._shownAt = Date.now();
+    if (this._hideTimer) clearTimeout(this._hideTimer);
+    if (this._tickFrame) cancelAnimationFrame(this._tickFrame);
+
+    this._hideTimer = setTimeout(() => this._hide(), this.DISPLAY_MS);
+    this._tickTimer();
+  }
+
+  _hide() {
+    this.el.style.opacity = '0';
+    this.el.style.transform = 'translateY(-12px)';
+    setTimeout(() => {
+      this.el.style.display = 'none';
+      this._shownAt = null;
+    }, 400);
+  }
+
+  _tickTimer() {
+    if (!this._shownAt) return;
+    const elapsed = Math.floor((Date.now() - this._shownAt) / 1000);
+    const remaining = Math.max(0, 60 - elapsed);
+    this.el.querySelector('.ww-timer').textContent = remaining + 's 后自动收起';
+    if (remaining > 0) this._tickFrame = requestAnimationFrame(() => this._tickTimer());
+  }
+
+  _emoji(code) {
+    const map = {
+      113:'☀️',116:'⛅',119:'☁️',122:'☁️',143:'🌫️',
+      176:'🌦️',179:'🌨️',182:'🌨️',185:'🌨️',200:'⛈️',
+      227:'🌨️',230:'❄️',248:'🌫️',260:'🌫️',263:'🌦️',
+      266:'🌧️',281:'🌨️',284:'🌨️',293:'🌦️',296:'🌧️',
+      299:'🌧️',302:'🌧️',305:'🌧️',308:'🌧️',311:'🌨️',
+      314:'🌨️',317:'🌨️',320:'🌨️',323:'🌨️',326:'🌨️',
+      329:'❄️',332:'❄️',335:'❄️',338:'❄️',350:'🌨️',
+      353:'🌦️',356:'🌧️',359:'🌧️',362:'🌨️',365:'🌨️',
+      368:'🌨️',371:'❄️',374:'🌨️',377:'🌨️',386:'⛈️',
+      389:'⛈️',392:'⛈️',395:'❄️',
+    };
+    return map[code] || '🌡️';
+  }
+
+  _injectPulseStyle() {
+    if (document.getElementById('ww-pulse-style')) return;
+    const s = document.createElement('style');
+    s.id = 'ww-pulse-style';
+    s.textContent = `
+      @keyframes ww-pulse-ring {
+        0% { transform: scale(0.8); opacity: 1; }
+        100% { transform: scale(2); opacity: 0; }
+      }
+      .ww-pulse::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        border: 2px solid rgba(67,160,71,0.3);
+        animation: ww-pulse-ring 2s ease-out infinite;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  destroy() {
+    clearTimeout(this._hideTimer);
+    cancelAnimationFrame(this._tickFrame);
+    this.el?.remove();
+  }
+}
+/**
  * Web悬浮桌面宠物 - 主入口
  * 一行代码引入即可运行
  */
@@ -2952,6 +3334,18 @@ class WebPet {
     // 天气系统
     this.weather = new WeatherSystem(this.container, this.bubble);
 
+    // 天气通知卡片（右上角，显示1分钟后自动收起）
+    this.weatherWidget = new WeatherWidget();
+    this.weather.onWeatherUpdate = (w) => {
+      // 动态调整位置，避免与提醒组件重叠
+      const offset = this.reminderWidget?.getHeight() || 0;
+      this.weatherWidget.setTopOffset(12 + offset);
+      this.weatherWidget.show(w);
+    };
+
+    // 提醒列表组件（右上角，有提醒时显示，带数量徽章）
+    this.reminderWidget = new ReminderWidget(this.reminder);
+
     // 检查是否有常驻便签
     this._showPinnedNote();
 
@@ -2977,7 +3371,7 @@ class WebPet {
 
     this._contextMenu.show(e.clientX, e.clientY, [
       // 提醒
-      { label: '⏰ 快速提醒', isTitle: true },
+      { label: `⏰ 快速提醒 (${this.reminder.getActiveCount()} 个进行中)`, isTitle: true },
       { label: '  5 分钟后提醒', action: () => this._setQuickTimer(5) },
       { label: '  10 分钟后提醒', action: () => this._setQuickTimer(10) },
       { label: '  15 分钟后提醒', action: () => this._setQuickTimer(15) },
@@ -3012,6 +3406,7 @@ class WebPet {
       // 天气
       { label: '🌤️ 天气', isTitle: true },
       { label: '  ' + (this.weather?.getWeatherInfo() || '获取中...'), action: () => this.weather?._fetchWeather() },
+      { label: '  📋 显示天气卡片', action: () => { if (this.weather?.currentWeather) this.weatherWidget?.show(this.weather.currentWeather); } },
       { label: '  📍 切换城市...', action: () => this._setWeatherCity() },
       { divider: true },
       // 工具
@@ -3237,6 +3632,8 @@ class WebPet {
     this.hourly.destroy();
     this.settings.destroy();
     this._contextMenu?.destroy();
+    this.reminderWidget?.destroy();
+    this.weatherWidget?.destroy();
   }
 }
 

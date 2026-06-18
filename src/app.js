@@ -196,6 +196,18 @@ class WebPet {
     // 天气系统
     this.weather = new WeatherSystem(this.container, this.bubble);
 
+    // 天气通知卡片（右上角，显示1分钟后自动收起）
+    this.weatherWidget = new WeatherWidget();
+    this.weather.onWeatherUpdate = (w) => {
+      // 动态调整位置，避免与提醒组件重叠
+      const offset = this.reminderWidget?.getHeight() || 0;
+      this.weatherWidget.setTopOffset(12 + offset);
+      this.weatherWidget.show(w);
+    };
+
+    // 提醒列表组件（右上角，有提醒时显示，带数量徽章）
+    this.reminderWidget = new ReminderWidget(this.reminder);
+
     // 检查是否有常驻便签
     this._showPinnedNote();
 
@@ -221,7 +233,7 @@ class WebPet {
 
     this._contextMenu.show(e.clientX, e.clientY, [
       // 提醒
-      { label: '⏰ 快速提醒', isTitle: true },
+      { label: `⏰ 快速提醒 (${this.reminder.getActiveCount()} 个进行中)`, isTitle: true },
       { label: '  5 分钟后提醒', action: () => this._setQuickTimer(5) },
       { label: '  10 分钟后提醒', action: () => this._setQuickTimer(10) },
       { label: '  15 分钟后提醒', action: () => this._setQuickTimer(15) },
@@ -256,6 +268,7 @@ class WebPet {
       // 天气
       { label: '🌤️ 天气', isTitle: true },
       { label: '  ' + (this.weather?.getWeatherInfo() || '获取中...'), action: () => this.weather?._fetchWeather() },
+      { label: '  📋 显示天气卡片', action: () => { if (this.weather?.currentWeather) this.weatherWidget?.show(this.weather.currentWeather); } },
       { label: '  📍 切换城市...', action: () => this._setWeatherCity() },
       { divider: true },
       // 工具
@@ -481,6 +494,8 @@ class WebPet {
     this.hourly.destroy();
     this.settings.destroy();
     this._contextMenu?.destroy();
+    this.reminderWidget?.destroy();
+    this.weatherWidget?.destroy();
   }
 }
 

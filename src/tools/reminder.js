@@ -52,9 +52,18 @@ class ReminderTool {
     return [...this.reminders];
   }
 
+  getActive() {
+    return this.reminders.filter(r => r.enabled);
+  }
+
+  getActiveCount() {
+    return this.reminders.filter(r => r.enabled).length;
+  }
+
   _startCheck() {
     this._timer = setInterval(() => {
       const now = Date.now();
+      const toRemove = [];
       for (const r of this.reminders) {
         if (!r.enabled) continue;
         if (now >= r.triggerAt) {
@@ -63,10 +72,13 @@ class ReminderTool {
             r.triggerAt += 86400000;
           } else {
             r.enabled = false;
+            toRemove.push(r.id);
           }
         }
       }
-      this._save();
+      // 延迟移除，避免遍历时修改数组
+      for (const id of toRemove) this.remove(id);
+      if (toRemove.length === 0) this._save();
     }, 10000); // 每10秒检查
   }
 
