@@ -2181,7 +2181,8 @@ class SettingsPanel {
       if (confirm('确定要重置所有数据吗？')) this.options.onReset?.();
     };
 
-    // AI 厂商配置表
+    // AI 厂商配置表（防御性初始化）
+    if (!$('sp-ai-provider')) return; // AI 区块不存在则跳过
     const AI_PROVIDERS = {
       openai: {
         name: 'OpenAI',
@@ -2239,15 +2240,17 @@ class SettingsPanel {
     const modelSelect = $('sp-ai-model-select');
     const promptInput = $('sp-ai-prompt');
 
+    if (!providerSelect || !epInput || !keyInput || !modelInput) return; // 元素不存在则跳过
+
     // 根据已保存的 endpoint 反推厂商
     let matchedProvider = 'custom';
     for (const [k, v] of Object.entries(AI_PROVIDERS)) {
       if (chatCfg.endpoint === v.endpoint) { matchedProvider = k; break; }
     }
-    if (providerSelect) providerSelect.value = matchedProvider;
-    if (epInput) epInput.value = chatCfg.endpoint || '';
-    if (keyInput) keyInput.value = chatCfg.apiKey || '';
-    if (modelInput) modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
+    providerSelect.value = matchedProvider;
+    epInput.value = chatCfg.endpoint || '';
+    keyInput.value = chatCfg.apiKey || '';
+    modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
     if (promptInput) promptInput.value = chatCfg.systemPrompt || '';
 
     // 厂商下拉切换
@@ -2280,12 +2283,12 @@ class SettingsPanel {
 
     const saveBtn = $('sp-ai-save');
     if (saveBtn) saveBtn.onclick = () => {
-      const modelVal = modelSelect?.style.display !== 'none' ? modelSelect?.value : modelInput?.value;
+      const modelVal = modelSelect && modelSelect.style.display !== 'none' ? modelSelect.value : modelInput.value;
       this.options.onSaveChatConfig?.({
-        endpoint: epInput?.value.trim(),
-        apiKey: keyInput?.value.trim(),
-        model: modelVal?.trim() || 'gpt-3.5-turbo',
-        systemPrompt: promptInput?.value.trim()
+        endpoint: epInput.value.trim(),
+        apiKey: keyInput.value.trim(),
+        model: (modelVal || '').trim() || 'gpt-3.5-turbo',
+        systemPrompt: promptInput ? promptInput.value.trim() : ''
       });
       const status = $('sp-ai-status');
       if (status) { status.textContent = '✅ 已保存'; status.style.color = '#52C41A'; }
@@ -2844,21 +2847,27 @@ class MiniGames {
       const dealerShow = gameOver ? dealerHand.map(cardStr).join(' ') : cardStr(dealerHand[0]) + ' ?';
       const dealerVal = gameOver ? dv : '?';
 
-      this.panel.el.querySelector('#bj-dealer').innerHTML =
+      const dealerEl = this.panel.el?.querySelector('#bj-dealer');
+      const playerEl = this.panel.el?.querySelector('#bj-player');
+      if (!dealerEl || !playerEl) return; // 面板已关闭
+
+      dealerEl.innerHTML =
         `<div style="font-size:12px;color:#999;margin-bottom:4px">庄家 (${dealerVal})</div>` +
         `<div style="font-size:20px;letter-spacing:4px">${dealerShow}</div>`;
-      this.panel.el.querySelector('#bj-player').innerHTML =
+      playerEl.innerHTML =
         `<div style="font-size:12px;color:#999;margin-bottom:4px">你的牌 (${pv})</div>` +
         `<div style="font-size:20px;letter-spacing:4px">${playerHand.map(cardStr).join(' ')}</div>`;
 
       const statusEl = this.panel.el.querySelector('#bj-status');
       const hitBtn = this.panel.el.querySelector('#bj-hit');
       const standBtn = this.panel.el.querySelector('#bj-stand');
+      const actionsEl = this.panel.el.querySelector('#bj-actions');
+      if (!statusEl || !hitBtn || !standBtn || !actionsEl) return;
 
       if (gameOver) {
         hitBtn.style.display = 'none';
         standBtn.style.display = 'none';
-        this.panel.el.querySelector('#bj-actions').style.display = 'block';
+        actionsEl.style.display = 'block';
         if (pv > 21) { statusEl.textContent = '💥 爆了！你输了'; statusEl.style.color = '#e74c3c'; }
         else if (dv > 21) { statusEl.textContent = '🎉 庄家爆了！你赢了'; statusEl.style.color = '#27ae60'; }
         else if (pv > dv) { statusEl.textContent = '🎉 你赢了！'; statusEl.style.color = '#27ae60'; }
@@ -2928,8 +2937,9 @@ class MiniGames {
     };
 
     const render = () => {
-      const grid = this.panel.el.querySelector('#mf-grid');
-      const info = this.panel.el.querySelector('#mf-info');
+      const grid = this.panel.el?.querySelector('#mf-grid');
+      const info = this.panel.el?.querySelector('#mf-info');
+      if (!grid || !info) return;
       grid.innerHTML = cards.map((c, i) => {
         const isFlipped = flipped.includes(i) || matched.includes(i);
         const isMatched = matched.includes(i);
@@ -3000,8 +3010,9 @@ class MiniGames {
     let score = 0, timeLeft = 15, timer = null, molePos = -1;
 
     const render = () => {
-      const grid = this.panel.el.querySelector('#wm-grid');
-      const info = this.panel.el.querySelector('#wm-info');
+      const grid = this.panel.el?.querySelector('#wm-grid');
+      const info = this.panel.el?.querySelector('#wm-info');
+      if (!grid || !info) return;
       grid.innerHTML = Array.from({ length: 9 }, (_, i) => {
         const isMole = i === molePos;
         return `<div class="wm-hole" data-idx="${i}" style="

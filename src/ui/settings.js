@@ -273,7 +273,8 @@ class SettingsPanel {
       if (confirm('确定要重置所有数据吗？')) this.options.onReset?.();
     };
 
-    // AI 厂商配置表
+    // AI 厂商配置表（防御性初始化）
+    if (!$('sp-ai-provider')) return; // AI 区块不存在则跳过
     const AI_PROVIDERS = {
       openai: {
         name: 'OpenAI',
@@ -331,15 +332,17 @@ class SettingsPanel {
     const modelSelect = $('sp-ai-model-select');
     const promptInput = $('sp-ai-prompt');
 
+    if (!providerSelect || !epInput || !keyInput || !modelInput) return; // 元素不存在则跳过
+
     // 根据已保存的 endpoint 反推厂商
     let matchedProvider = 'custom';
     for (const [k, v] of Object.entries(AI_PROVIDERS)) {
       if (chatCfg.endpoint === v.endpoint) { matchedProvider = k; break; }
     }
-    if (providerSelect) providerSelect.value = matchedProvider;
-    if (epInput) epInput.value = chatCfg.endpoint || '';
-    if (keyInput) keyInput.value = chatCfg.apiKey || '';
-    if (modelInput) modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
+    providerSelect.value = matchedProvider;
+    epInput.value = chatCfg.endpoint || '';
+    keyInput.value = chatCfg.apiKey || '';
+    modelInput.value = chatCfg.model || 'gpt-3.5-turbo';
     if (promptInput) promptInput.value = chatCfg.systemPrompt || '';
 
     // 厂商下拉切换
@@ -372,12 +375,12 @@ class SettingsPanel {
 
     const saveBtn = $('sp-ai-save');
     if (saveBtn) saveBtn.onclick = () => {
-      const modelVal = modelSelect?.style.display !== 'none' ? modelSelect?.value : modelInput?.value;
+      const modelVal = modelSelect && modelSelect.style.display !== 'none' ? modelSelect.value : modelInput.value;
       this.options.onSaveChatConfig?.({
-        endpoint: epInput?.value.trim(),
-        apiKey: keyInput?.value.trim(),
-        model: modelVal?.trim() || 'gpt-3.5-turbo',
-        systemPrompt: promptInput?.value.trim()
+        endpoint: epInput.value.trim(),
+        apiKey: keyInput.value.trim(),
+        model: (modelVal || '').trim() || 'gpt-3.5-turbo',
+        systemPrompt: promptInput ? promptInput.value.trim() : ''
       });
       const status = $('sp-ai-status');
       if (status) { status.textContent = '✅ 已保存'; status.style.color = '#52C41A'; }

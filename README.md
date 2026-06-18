@@ -1,4 +1,4 @@
-# Web 悬浮桌面宠物 🐱 v2.5.1
+# Web 悬浮桌面宠物 🐱 v2.5.2
 
 原生 HTML + CSS + JS 实现的轻量悬浮桌面宠物，支持挂件版与浏览器插件版。
 
@@ -109,7 +109,7 @@
 ```
 
 ### 插件版
-1. 下载 `releases/web-pet-extension-v2.5.1.zip` 并解压
+1. 下载 `releases/web-pet-extension-v2.5.2.zip` 并解压
 2. Chrome 打开 `chrome://extensions`
 3. 开启「开发者模式」
 4. 点击「加载已解出的扩展程序」→ 选择解压后的文件夹
@@ -165,9 +165,9 @@ web-pet/
 │   ├── default_cat/
 │   └── blue_bird/
 ├── releases/               # 历史版本扩展包
-│   └── web-pet-extension-v2.5.1.zip
+│   └── web-pet-extension-v2.5.2.zip
 └── extension/              # Chrome 插件版
-    ├── manifest.json       # v2.5.1
+    ├── manifest.json       # v2.5.2
     ├── background.js
     ├── pet-content.js
     ├── pet-core.js         # 打包后的核心代码
@@ -179,6 +179,7 @@ web-pet/
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v2.5.2 | 2026-06-19 | 修复 innerHTML null 报错：增加防御性 null 检查 |
 | v2.5.1 | 2026-06-19 | AI 聊天增加厂商下拉选择，内置 9 家厂商地址和模型列表 |
 | v2.5.0 | 2026-06-19 | 新增 AI 聊天功能，接入 OpenAI 兼容 API |
 | v2.4.0 | 2026-06-19 | 新增4个迷你游戏：21点、记忆翻牌、打地鼠、抛硬币 |

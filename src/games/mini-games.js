@@ -277,21 +277,27 @@ class MiniGames {
       const dealerShow = gameOver ? dealerHand.map(cardStr).join(' ') : cardStr(dealerHand[0]) + ' ?';
       const dealerVal = gameOver ? dv : '?';
 
-      this.panel.el.querySelector('#bj-dealer').innerHTML =
+      const dealerEl = this.panel.el?.querySelector('#bj-dealer');
+      const playerEl = this.panel.el?.querySelector('#bj-player');
+      if (!dealerEl || !playerEl) return; // 面板已关闭
+
+      dealerEl.innerHTML =
         `<div style="font-size:12px;color:#999;margin-bottom:4px">庄家 (${dealerVal})</div>` +
         `<div style="font-size:20px;letter-spacing:4px">${dealerShow}</div>`;
-      this.panel.el.querySelector('#bj-player').innerHTML =
+      playerEl.innerHTML =
         `<div style="font-size:12px;color:#999;margin-bottom:4px">你的牌 (${pv})</div>` +
         `<div style="font-size:20px;letter-spacing:4px">${playerHand.map(cardStr).join(' ')}</div>`;
 
       const statusEl = this.panel.el.querySelector('#bj-status');
       const hitBtn = this.panel.el.querySelector('#bj-hit');
       const standBtn = this.panel.el.querySelector('#bj-stand');
+      const actionsEl = this.panel.el.querySelector('#bj-actions');
+      if (!statusEl || !hitBtn || !standBtn || !actionsEl) return;
 
       if (gameOver) {
         hitBtn.style.display = 'none';
         standBtn.style.display = 'none';
-        this.panel.el.querySelector('#bj-actions').style.display = 'block';
+        actionsEl.style.display = 'block';
         if (pv > 21) { statusEl.textContent = '💥 爆了！你输了'; statusEl.style.color = '#e74c3c'; }
         else if (dv > 21) { statusEl.textContent = '🎉 庄家爆了！你赢了'; statusEl.style.color = '#27ae60'; }
         else if (pv > dv) { statusEl.textContent = '🎉 你赢了！'; statusEl.style.color = '#27ae60'; }
@@ -361,8 +367,9 @@ class MiniGames {
     };
 
     const render = () => {
-      const grid = this.panel.el.querySelector('#mf-grid');
-      const info = this.panel.el.querySelector('#mf-info');
+      const grid = this.panel.el?.querySelector('#mf-grid');
+      const info = this.panel.el?.querySelector('#mf-info');
+      if (!grid || !info) return;
       grid.innerHTML = cards.map((c, i) => {
         const isFlipped = flipped.includes(i) || matched.includes(i);
         const isMatched = matched.includes(i);
@@ -433,8 +440,9 @@ class MiniGames {
     let score = 0, timeLeft = 15, timer = null, molePos = -1;
 
     const render = () => {
-      const grid = this.panel.el.querySelector('#wm-grid');
-      const info = this.panel.el.querySelector('#wm-info');
+      const grid = this.panel.el?.querySelector('#wm-grid');
+      const info = this.panel.el?.querySelector('#wm-info');
+      if (!grid || !info) return;
       grid.innerHTML = Array.from({ length: 9 }, (_, i) => {
         const isMole = i === molePos;
         return `<div class="wm-hole" data-idx="${i}" style="
