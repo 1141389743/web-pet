@@ -99,38 +99,34 @@ $('settings-btn').addEventListener('click', () => {
   window.close();
 });
 
-// 快速倒计时按钮
-let selectedMinutes = 0;
+// 快速倒计时按钮 - 单击直接启动
 document.querySelectorAll('.timer-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    // 取消其他选中
-    document.querySelectorAll('.timer-btn').forEach(b => {
-      b.style.background = '';
-      b.style.color = '';
-      b.style.borderColor = '';
-    });
-    // 选中当前
-    btn.style.background = '#FF6B81';
-    btn.style.color = '#fff';
-    btn.style.borderColor = '#FF6B81';
-    selectedMinutes = parseInt(btn.dataset.min);
-  });
-});
-
-// 快速倒计时：点击任意timer-btn直接设置（双击确认）
-document.querySelectorAll('.timer-btn').forEach(btn => {
-  btn.addEventListener('dblclick', () => {
     const text = $('reminder-text').value.trim() || '时间到了~';
     const minutes = parseInt(btn.dataset.min);
     const triggerAt = Date.now() + minutes * 60000;
     sendToTab({ type: 'ADD_REMINDER', content: text, triggerAt, minutes });
-    $('reminder-text').value = '';
-    selectedMinutes = 0;
-    document.querySelectorAll('.timer-btn').forEach(b => {
-      b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
-    });
-    window.close();
+    // 视觉反馈
+    btn.style.background = '#52C41A';
+    btn.style.color = '#fff';
+    btn.textContent = '✓ 已设置';
+    setTimeout(() => {
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.textContent = btn.dataset.min >= 60 ? (btn.dataset.min/60) + ' 小时' : btn.dataset.min + ' 分钟';
+    }, 1500);
   });
+});
+
+// 自定义分钟数
+$('add-custom-timer').addEventListener('click', () => {
+  const text = $('reminder-text').value.trim() || '时间到了~';
+  const minutes = parseInt($('custom-minutes').value);
+  if (!minutes || minutes < 1) { alert('请输入有效分钟数'); return; }
+  const triggerAt = Date.now() + minutes * 60000;
+  sendToTab({ type: 'ADD_REMINDER', content: text, triggerAt, minutes });
+  $('custom-minutes').value = '';
+  window.close();
 });
 
 // 设闹钟
