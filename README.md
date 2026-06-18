@@ -1,4 +1,4 @@
-# Web 悬浮桌面宠物 🐱 v2.7.0
+# Web 悬浮桌面宠物 🐱 v2.7.1
 
 原生 HTML + CSS + JS 实现的轻量悬浮桌面宠物，支持挂件版与浏览器插件版。
 
@@ -138,7 +138,7 @@
 ```
 
 ### 插件版
-1. 下载 `releases/web-pet-extension-v2.7.0.zip` 并解压
+1. 下载 `releases/web-pet-extension-v2.7.1.zip` 并解压
 2. Chrome 打开 `chrome://extensions`
 3. 开启「开发者模式」
 4. 点击「加载已解出的扩展程序」→ 选择解压后的文件夹
@@ -194,9 +194,9 @@ web-pet/
 │   ├── default_cat/
 │   └── blue_bird/
 ├── releases/               # 历史版本扩展包
-│   └── web-pet-extension-v2.7.0.zip
+│   └── web-pet-extension-v2.7.1.zip
 └── extension/              # Chrome 插件版
-    ├── manifest.json       # v2.7.0
+    ├── manifest.json       # v2.7.1
     ├── background.js
     ├── pet-content.js
     ├── pet-core.js         # 打包后的核心代码
@@ -208,6 +208,7 @@ web-pet/
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v2.7.1 | 2026-06-19 | 设置面板 AI 配置文案优化，明确聊天+自主行为+情绪反应共用同一配置 |
 | v2.7.0 | 2026-06-19 | 情绪视觉系统：宠物外观随情绪动态变化（滤镜/动画/光晕/指示器），支持 emoji 和自定义图片 |
 | v2.6.0 | 2026-06-19 | 情绪系统 + AI 行为驱动 + 10种宠物动作（影分身/跳舞/旋转等） |
 | v2.5.2 | 2026-06-19 | 修复 innerHTML null 报错：增加防御性 null 检查 |

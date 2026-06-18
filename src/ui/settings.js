@@ -136,8 +136,8 @@ class SettingsPanel {
         </div>
 
         <div class="sp-section">
-          <div class="sp-title">💬 AI 聊天</div>
-          <div style="font-size:12px;color:#666;margin-bottom:8px">接入 AI 大模型，让宠物能和你对话</div>
+          <div class="sp-title">🤖 AI 配置</div>
+          <div style="font-size:12px;color:#666;margin-bottom:8px">接入 AI 大模型，驱动宠物聊天对话 + 自主行为 + 情绪反应</div>
           <div class="sp-row">
             <span>厂商</span>
             <select id="sp-ai-provider" style="width:170px;padding:4px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;outline:none;background:#fff">
