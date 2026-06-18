@@ -49,7 +49,11 @@ class PetContainer {
   }
 
   _applyScale() {
-    this.el.style.transform = `scale(${this.scale})`;
+    this.el.style.setProperty('--pet-scale', this.scale);
+    // transform 由 CSS 动画或 JS 控制，scale 通过 CSS 变量传递
+    if (!this.el.style.animation) {
+      this.el.style.transform = `scale(${this.scale})`;
+    }
   }
 
   _applyOpacity() {

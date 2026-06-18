@@ -248,6 +248,9 @@ class WebPet {
       onOpenSettings: () => this.settings.show()
     });
 
+    // 情绪视觉系统（让宠物外观随情绪动态变化）
+    this.emotionVisual = new EmotionVisual(this.container, this.emotion);
+
     // 宠物动作系统
     this.petActions = new PetActions(this.container, this.bubble, this.emotion);
 
@@ -613,6 +616,7 @@ class WebPet {
     this.chatPanel?.destroy();
     this.aiBehavior?.destroy();
     this.petActions?.destroy();
+    this.emotionVisual?.destroy();
     this.emotion?.destroy();
   }
 }
