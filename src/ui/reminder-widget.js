@@ -1,14 +1,16 @@
 /**
  * 提醒列表浮动组件 - 右上角显示，带数量徽章
- * 触发后自动从列表移除
+ * 显示10秒后自动收起，点击标题可重新展开
  */
 class ReminderWidget {
   constructor(reminderTool) {
     this.reminder = reminderTool;
     this.el = null;
-    this.badgeEl = null;
-    this.listEl = null;
     this._collapsed = false;
+    this._hideTimer = null;
+    this._tickFrame = null;
+    this._shownAt = null;
+    this.DISPLAY_MS = 10000; // 10秒自动收起
     this._init();
   }
 
@@ -23,7 +25,10 @@ class ReminderWidget {
       zIndex: '2147483640',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
       fontSize: '13px',
-      display: 'none', // 有提醒时才显示
+      display: 'none',
+      opacity: '0',
+      transform: 'translateY(-12px)',
+      transition: 'opacity 0.35s ease, transform 0.35s ease',
       pointerEvents: 'auto'
     });
 
@@ -36,7 +41,6 @@ class ReminderWidget {
         box-shadow: 0 8px 32px rgba(0,0,0,0.45);
         overflow: hidden;
         color: #e0e0e0;
-        transition: opacity 0.35s, transform 0.35s, max-height 0.4s;
       ">
         <div class="rw-header" style="
           display:flex; align-items:center; justify-content:space-between;
@@ -51,7 +55,10 @@ class ReminderWidget {
               font-size:11px;font-weight:700;color:#fff;background:#5b6eea;
             ">0</span>
           </div>
-          <span class="rw-chevron" style="font-size:10px;color:#666;transition:transform 0.25s">▼</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="rw-timer" style="font-size:10px;color:#444"></span>
+            <span class="rw-chevron" style="font-size:10px;color:#666;transition:transform 0.25s">▼</span>
+          </div>
         </div>
         <div class="rw-body" style="max-height:300px;overflow:hidden;transition:max-height 0.35s">
           <div class="rw-scroll" style="max-height:260px;overflow-y:auto;padding-bottom:4px"></div>
@@ -61,16 +68,73 @@ class ReminderWidget {
 
     document.body.appendChild(this.el);
 
-    // 折叠切换
+    // 点击标题：如果已收起则展开并重新计时
     const header = this.el.querySelector('.rw-header');
-    header.addEventListener('click', () => this._toggle());
+    header.addEventListener('click', () => {
+      if (this._collapsed) {
+        this._collapsed = false;
+        this.el.querySelector('.rw-body').style.maxHeight = '300px';
+        this.el.querySelector('.rw-chevron').style.transform = '';
+        this._startAutoHide();
+      } else {
+        this._hide();
+      }
+    });
 
     // 定时刷新列表
     setInterval(() => this.refresh(), 10000);
     this.refresh();
+  }
 
-    // 通知天气组件调整位置
-    window.addEventListener('web-pet-reminder-widget-resize', () => {});
+  /**
+   * 显示卡片并启动10秒倒计时
+   */
+  _show() {
+    this.el.style.display = 'block';
+    requestAnimationFrame(() => {
+      this.el.style.opacity = '1';
+      this.el.style.transform = 'translateY(0)';
+    });
+    this._startAutoHide();
+  }
+
+  /**
+   * 隐藏卡片
+   */
+  _hide() {
+    this.el.style.opacity = '0';
+    this.el.style.transform = 'translateY(-12px)';
+    clearTimeout(this._hideTimer);
+    cancelAnimationFrame(this._tickFrame);
+    this._hideTimer = null;
+    this._tickFrame = null;
+    this._shownAt = null;
+    this.el.querySelector('.rw-timer').textContent = '';
+    setTimeout(() => {
+      this.el.style.display = 'none';
+      // 通知天气组件位置变化
+      if (this.onVisibilityChange) this.onVisibilityChange(0);
+    }, 350);
+  }
+
+  /**
+   * 启动10秒自动隐藏计时器
+   */
+  _startAutoHide() {
+    clearTimeout(this._hideTimer);
+    cancelAnimationFrame(this._tickFrame);
+    this._shownAt = Date.now();
+
+    this._hideTimer = setTimeout(() => this._hide(), this.DISPLAY_MS);
+    this._tickTimer();
+  }
+
+  _tickTimer() {
+    if (!this._shownAt) return;
+    const elapsed = Math.floor((Date.now() - this._shownAt) / 1000);
+    const remaining = Math.max(0, 10 - elapsed);
+    this.el.querySelector('.rw-timer').textContent = remaining + 's';
+    if (remaining > 0) this._tickFrame = requestAnimationFrame(() => this._tickTimer());
   }
 
   /**
@@ -78,15 +142,7 @@ class ReminderWidget {
    */
   getHeight() {
     if (!this.el || this.el.style.display === 'none') return 0;
-    return this.el.offsetHeight + 8; // 8px gap
-  }
-
-  _toggle() {
-    this._collapsed = !this._collapsed;
-    const body = this.el.querySelector('.rw-body');
-    const chev = this.el.querySelector('.rw-chevron');
-    body.style.maxHeight = this._collapsed ? '0' : '300px';
-    chev.style.transform = this._collapsed ? 'rotate(-90deg)' : '';
+    return this.el.offsetHeight + 8;
   }
 
   refresh() {
@@ -97,14 +153,21 @@ class ReminderWidget {
 
     badge.textContent = active.length;
 
-    // 有提醒才显示组件
-    const wasVisible = this.el.style.display !== 'none';
+    const wasVisible = this.el.style.display !== 'none' && this.el.style.opacity !== '0';
     const nowVisible = active.length > 0;
-    this.el.style.display = nowVisible ? 'block' : 'none';
 
-    // 通知外部组件位置变化
-    if (wasVisible !== nowVisible && this.onVisibilityChange) {
-      this.onVisibilityChange(nowVisible ? this.getHeight() : 0);
+    if (nowVisible && !wasVisible) {
+      // 有新提醒，显示并计时
+      this._collapsed = false;
+      this.el.querySelector('.rw-body').style.maxHeight = '300px';
+      this.el.querySelector('.rw-chevron').style.transform = '';
+      this._show();
+      if (this.onVisibilityChange) this.onVisibilityChange(this.getHeight());
+    } else if (!nowVisible && wasVisible) {
+      this._hide();
+    } else if (nowVisible) {
+      // 内容变化但仍在显示，更新高度偏移
+      if (this.onVisibilityChange) this.onVisibilityChange(this.getHeight());
     }
 
     if (active.length === 0) {
@@ -175,6 +238,8 @@ class ReminderWidget {
   }
 
   destroy() {
+    clearTimeout(this._hideTimer);
+    cancelAnimationFrame(this._tickFrame);
     this.el?.remove();
   }
 }

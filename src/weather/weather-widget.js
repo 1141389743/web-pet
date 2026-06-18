@@ -141,7 +141,7 @@ class WeatherWidget {
   _tickTimer() {
     if (!this._shownAt) return;
     const elapsed = Math.floor((Date.now() - this._shownAt) / 1000);
-    const remaining = Math.max(0, 60 - elapsed);
+    const remaining = Math.max(0, Math.round(this.DISPLAY_MS / 1000) - elapsed);
     this.el.querySelector('.ww-timer').textContent = remaining + 's 后自动收起';
     if (remaining > 0) this._tickFrame = requestAnimationFrame(() => this._tickTimer());
   }
