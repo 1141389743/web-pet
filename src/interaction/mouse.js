@@ -1,6 +1,6 @@
 /**
  * 鼠标交互 - 点击、悬停、拖拽、右键菜单
- * 修复：移动超过5px才算拖拽，否则算点击
+ * 修复：移动超5px才算拖拽，否则算点击；右键始终正常
  */
 class MouseHandler {
   constructor(container, stateMachine) {
@@ -11,6 +11,7 @@ class MouseHandler {
     this._lastClickTime = 0;
     this._mouseDownPos = null;
     this._hasMoved = false;
+    this._dragStarted = false;
 
     this._onMouseMove = this._handleMouseMove.bind(this);
     this._onMouseUp = this._handleMouseUp.bind(this);
@@ -21,16 +22,17 @@ class MouseHandler {
   _bindEvents() {
     const el = this.container.el;
 
-    // mousedown - 记录位置，准备拖拽
+    // mousedown - 记录位置，准备拖拽（仅左键）
     el.addEventListener('mousedown', (e) => {
-      if (e.button === 0) {
-        this._mouseDownPos = { x: e.clientX, y: e.clientY };
-        this._hasMoved = false;
+      if (e.button !== 0) return; // 只处理左键
+      e.preventDefault();
 
-        // 开始监听移动和释放
-        document.addEventListener('mousemove', this._onMouseMove);
-        document.addEventListener('mouseup', this._onMouseUp);
-      }
+      this._mouseDownPos = { x: e.clientX, y: e.clientY };
+      this._hasMoved = false;
+      this._dragStarted = false;
+
+      document.addEventListener('mousemove', this._onMouseMove);
+      document.addEventListener('mouseup', this._onMouseUp);
     });
 
     // touchstart
@@ -38,6 +40,7 @@ class MouseHandler {
       const touch = e.touches[0];
       this._mouseDownPos = { x: touch.clientX, y: touch.clientY };
       this._hasMoved = false;
+      this._dragStarted = false;
 
       const onTouchMove = (ev) => {
         const t = ev.touches[0];
@@ -45,7 +48,8 @@ class MouseHandler {
         const dy = Math.abs(t.clientY - this._mouseDownPos.y);
         if (dx > 5 || dy > 5) {
           this._hasMoved = true;
-          if (!this.container.isDragging) {
+          if (!this._dragStarted) {
+            this._dragStarted = true;
             this.container.startDrag(touch);
             this.stateMachine.changeState('dragged');
           }
@@ -62,11 +66,10 @@ class MouseHandler {
           this.container._handleUp({});
           this.stateMachine.changeState('idle');
         } else if (this._mouseDownPos) {
-          // 算点击
           this.stateMachine.changeState('clicked');
           if (this.onClick) this.onClick();
         }
-        this._mouseDownPos = null;
+        this._reset();
       };
 
       document.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -80,7 +83,6 @@ class MouseHandler {
         if (this.onHover) this.onHover();
       }, 1000);
       if (this.container.isSnapped) {
-        const rect = el.getBoundingClientRect();
         const targetX = this.container.snapSide === 'left' ? 0 : window.innerWidth - this.container.size * this.container.scale;
         this.container.setPosition(targetX, this.container.position.y);
       }
@@ -97,10 +99,12 @@ class MouseHandler {
       }
     });
 
-    // 右键
+    // 右键菜单 - 独立绑定，不受拖拽影响
     el.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // 强制清理拖拽状态
+      this._cleanupDrag();
       if (this.onContextMenu) this.onContextMenu(e);
     });
   }
@@ -110,10 +114,10 @@ class MouseHandler {
     const dx = Math.abs(e.clientX - this._mouseDownPos.x);
     const dy = Math.abs(e.clientY - this._mouseDownPos.y);
 
-    // 移动超过5px才算拖拽
     if (dx > 5 || dy > 5) {
       this._hasMoved = true;
-      if (!this.container.isDragging) {
+      if (!this._dragStarted) {
+        this._dragStarted = true;
         this.container.startDrag({
           clientX: this._mouseDownPos.x,
           clientY: this._mouseDownPos.y
@@ -125,29 +129,23 @@ class MouseHandler {
   }
 
   _handleMouseUp(e) {
-    document.removeEventListener('mousemove', this._onMouseMove);
-    document.removeEventListener('mouseup', this._onMouseUp);
+    this._removeDocListeners();
 
     if (this.container.isDragging) {
-      // 结束拖拽
       this.container._handleUp(e);
       this.stateMachine.changeState('idle');
     } else if (this._mouseDownPos && !this._hasMoved) {
-      // 没移动 = 点击
       const now = Date.now();
       if (now - this._lastClickTime < 350) {
-        // 双击
         clearTimeout(this._clickTimer);
         this._handleDoubleClick(e);
       } else {
-        // 单击（延迟350ms确认不是双击）
         this._clickTimer = setTimeout(() => this._handleClick(e), 350);
       }
       this._lastClickTime = now;
     }
 
-    this._mouseDownPos = null;
-    this._hasMoved = false;
+    this._reset();
   }
 
   _handleClick(e) {
@@ -159,10 +157,29 @@ class MouseHandler {
     if (this.onDoubleClick) this.onDoubleClick(e);
   }
 
+  _cleanupDrag() {
+    this._removeDocListeners();
+    if (this.container.isDragging) {
+      this.container._handleUp({});
+      this.stateMachine.changeState('idle');
+    }
+    this._reset();
+  }
+
+  _removeDocListeners() {
+    document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('mouseup', this._onMouseUp);
+  }
+
+  _reset() {
+    this._mouseDownPos = null;
+    this._hasMoved = false;
+    this._dragStarted = false;
+  }
+
   destroy() {
     clearTimeout(this._hoverTimer);
     clearTimeout(this._clickTimer);
-    document.removeEventListener('mousemove', this._onMouseMove);
-    document.removeEventListener('mouseup', this._onMouseUp);
+    this._removeDocListeners();
   }
 }

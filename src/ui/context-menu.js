@@ -33,6 +33,11 @@ class ContextMenu {
 
   show(x, y, items) {
     this.el.innerHTML = '';
+    // 确保坐标有效
+    if (typeof x !== 'number' || typeof y !== 'number') {
+      x = window.innerWidth / 2;
+      y = window.innerHeight / 2;
+    }
     items.forEach(item => {
       if (item.divider) {
         const div = document.createElement('div');
