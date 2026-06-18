@@ -231,7 +231,12 @@ class WebPet {
     const pinned = this.notepad.getPinned();
     const customSkins = this.skinManager.getSkinList().filter(s => s.id.startsWith('custom_'));
 
-    this._contextMenu.show(e.clientX, e.clientY, [
+    // 用宠物当前位置而非鼠标位置
+    const rect = this.container.el.getBoundingClientRect();
+    const menuX = rect.left + rect.width / 2;
+    const menuY = rect.top;
+
+    this._contextMenu.show(menuX, menuY, [
       // 提醒
       { label: `⏰ 快速提醒 (${this.reminder.getActiveCount()} 个进行中)`, isTitle: true },
       { label: '  5 分钟后提醒', action: () => this._setQuickTimer(5) },
@@ -239,7 +244,9 @@ class WebPet {
       { label: '  15 分钟后提醒', action: () => this._setQuickTimer(15) },
       { label: '  30 分钟后提醒', action: () => this._setQuickTimer(30) },
       { label: '  1 小时后提醒', action: () => this._setQuickTimer(60) },
-      { label: '  自定义提醒...', action: () => this._customTimer() },
+      { label: '  2 小时后提醒', action: () => this._setQuickTimer(120) },
+      { label: '  ⏱️ 设闹钟...', action: () => this._setAlarm() },
+      { label: '  ✏️ 自定义提醒...', action: () => this._customTimer() },
       { divider: true },
       // 便签
       { label: '📝 快捷便签', isTitle: true },
@@ -292,6 +299,23 @@ class WebPet {
       this.reminder.add(text, Date.now() + Number(minStr) * 60000);
       this.bubble.show('⏰ ' + minStr + '分钟后提醒', 2000);
     }
+  }
+
+  _setAlarm() {
+    const text = prompt('提醒内容：') || '闹钟响了~';
+    const timeStr = prompt('设定时间（如 08:30, 14:00）：');
+    if (!timeStr) return;
+    const parts = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (!parts) { alert('时间格式错误，请用 HH:MM 格式'); return; }
+    const h = parseInt(parts[1]), m = parseInt(parts[2]);
+    if (h > 23 || m > 59) { alert('时间格式错误'); return; }
+    const target = new Date();
+    target.setHours(h, m, 0, 0);
+    if (target <= new Date()) target.setDate(target.getDate() + 1);
+    const mins = Math.round((target.getTime() - Date.now()) / 60000);
+    this.reminder.add(text, target.getTime());
+    const label = mins >= 60 ? Math.round(mins / 60) + '小时' : mins + '分钟';
+    this.bubble.show('⏰ 闹钟设在 ' + timeStr + '（' + label + '后）', 2500);
   }
 
   _addNote() {

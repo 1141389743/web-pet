@@ -73,11 +73,13 @@ class ContextMenu {
       this.el.appendChild(row);
     });
 
-    // 定位
-    const maxX = window.innerWidth - 160;
-    const maxY = window.innerHeight - this.el.children.length * 36;
-    this.el.style.left = Math.min(x, maxX) + 'px';
-    this.el.style.top = Math.min(y, maxY) + 'px';
+    // 定位，确保不超出屏幕
+    const menuW = this.el.offsetWidth || 180;
+    const menuH = this.el.children.length * 36;
+    const maxX = window.innerWidth - menuW - 8;
+    const maxY = window.innerHeight - menuH - 8;
+    this.el.style.left = Math.max(8, Math.min(x, maxX)) + 'px';
+    this.el.style.top = Math.max(8, Math.min(y, maxY)) + 'px';
     this.el.style.display = 'block';
   }
 
