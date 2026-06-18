@@ -42,6 +42,10 @@ class WebPet {
         silentEnd: this.options.silentEnd
       };
       localStorage.setItem('web_pet_config', JSON.stringify(cfg));
+      // 同步到 chrome.storage.local（插件跨页面同步）
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ config: cfg });
+      }
     } catch {}
   }
 
@@ -155,6 +159,8 @@ class WebPet {
       getConfig: () => this.options,
       getSkins: () => this.skinManager.getSkinList(),
       getCurrentSkinId: () => this.options.skin,
+      getReminders: () => this.reminder.getAll(),
+      onRemoveReminder: (id) => { this.reminder.remove(id); this.settings._render(); },
       onScaleChange: (v) => { this.options.scale = v; this.container.setScale(v); this._saveConfig(); },
       onOpacityChange: (v) => { this.options.opacity = v; this.container.setOpacity(v); this._saveConfig(); },
       onEdgeSnapChange: (v) => { this.options.edgeSnap = v; this.container.edgeSnap = v; this._saveConfig(); },
@@ -178,8 +184,9 @@ class WebPet {
 
     // 异步加载自定义皮肤，然后应用保存的皮肤
     const savedSkin = this.options.skin || 'emoji_cat';
-    this.skinManager.loadCustomSkins().then(() => {
+    this._skinReady = this.skinManager.loadCustomSkins().then(() => {
       this.skinManager.applySkin(savedSkin);
+      if (this.onReady) this.onReady();
     });
     this.stateMachine.startIdleScheduler();
 

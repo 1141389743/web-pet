@@ -17,7 +17,9 @@ class ContextMenu {
       borderRadius: '10px',
       boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       padding: '6px 0',
-      minWidth: '150px',
+      minWidth: '180px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
       display: 'none',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       fontSize: '13px'

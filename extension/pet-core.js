@@ -1503,7 +1503,9 @@ class ContextMenu {
       borderRadius: '10px',
       boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       padding: '6px 0',
-      minWidth: '150px',
+      minWidth: '180px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
       display: 'none',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       fontSize: '13px'
@@ -1973,6 +1975,25 @@ class SettingsPanel {
             <span>静默时段</span>
             <span>${cfg.silentStart||23}:00 - ${cfg.silentEnd||7}:00</span>
           </div>
+          <div id="sp-reminders" style="margin-top:10px">
+            <div style="font-size:12px;color:#666;margin-bottom:6px">进行中的提醒</div>
+            ${(() => {
+              const reminders = this.options.getReminders?.() || [];
+              const active = reminders.filter(r => r.enabled);
+              if (active.length === 0) return '<div style="font-size:12px;color:#ccc;padding:8px 0">暂无提醒</div>';
+              return active.map(r => {
+                const mins = Math.max(0, Math.round((r.triggerAt - Date.now()) / 60000));
+                const timeText = mins < 60 ? mins + '分钟' : Math.round(mins/60) + '小时';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5">
+                  <div>
+                    <div style="font-size:13px">${r.content}</div>
+                    <div style="font-size:11px;color:#999">还剩 ${timeText}</div>
+                  </div>
+                  <button class="sp-btn sp-btn-danger sp-rem-cancel" data-id="${r.id}" style="padding:3px 8px;font-size:11px">取消</button>
+                </div>`;
+              }).join('');
+            })()}
+          </div>
         </div>
 
         <div class="sp-section">
@@ -2069,6 +2090,11 @@ class SettingsPanel {
     // 导入图片
     $('sp-import-img').onclick = () => this.options.onImportImage?.();
 
+    // 提醒取消按钮
+    this.el.querySelectorAll('.sp-rem-cancel').forEach(btn => {
+      btn.onclick = () => this.options.onRemoveReminder?.(btn.dataset.id);
+    });
+
     // 数据操作
     $('sp-export').onclick = () => this.options.onExport?.();
     $('sp-import').onclick = () => this.options.onImport?.();
@@ -2126,6 +2152,10 @@ class WebPet {
         silentEnd: this.options.silentEnd
       };
       localStorage.setItem('web_pet_config', JSON.stringify(cfg));
+      // 同步到 chrome.storage.local（插件跨页面同步）
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ config: cfg });
+      }
     } catch {}
   }
 
@@ -2239,6 +2269,8 @@ class WebPet {
       getConfig: () => this.options,
       getSkins: () => this.skinManager.getSkinList(),
       getCurrentSkinId: () => this.options.skin,
+      getReminders: () => this.reminder.getAll(),
+      onRemoveReminder: (id) => { this.reminder.remove(id); this.settings._render(); },
       onScaleChange: (v) => { this.options.scale = v; this.container.setScale(v); this._saveConfig(); },
       onOpacityChange: (v) => { this.options.opacity = v; this.container.setOpacity(v); this._saveConfig(); },
       onEdgeSnapChange: (v) => { this.options.edgeSnap = v; this.container.edgeSnap = v; this._saveConfig(); },
@@ -2262,8 +2294,9 @@ class WebPet {
 
     // 异步加载自定义皮肤，然后应用保存的皮肤
     const savedSkin = this.options.skin || 'emoji_cat';
-    this.skinManager.loadCustomSkins().then(() => {
+    this._skinReady = this.skinManager.loadCustomSkins().then(() => {
       this.skinManager.applySkin(savedSkin);
+      if (this.onReady) this.onReady();
     });
     this.stateMachine.startIdleScheduler();
 

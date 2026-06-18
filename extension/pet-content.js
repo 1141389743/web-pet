@@ -56,7 +56,7 @@
   // 初始化宠物
   try {
     console.log('[WebPet] 初始化宠物...', config);
-    window.__webPet = new WebPet({
+    const pet = new WebPet({
       size: config.size || 120,
       scale: config.scale || 1.0,
       opacity: config.opacity || 1.0,
@@ -68,6 +68,17 @@
       silentStart: config.silentStart ?? 23,
       silentEnd: config.silentEnd ?? 7
     });
+    window.__webPet = pet;
+
+    // 皮肤加载完成后，强制重新应用保存的皮肤
+    pet.onReady = () => {
+      const savedSkin = config.skin || 'emoji_cat';
+      if (savedSkin !== 'emoji_cat') {
+        pet.setSkin(savedSkin);
+        console.log('[WebPet] 恢复皮肤:', savedSkin);
+      }
+    };
+
     console.log('[WebPet] ✅ 宠物初始化成功！');
   } catch (e) {
     console.error('[WebPet] ❌ 初始化失败:', e);
